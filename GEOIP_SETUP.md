@@ -10,7 +10,30 @@ Com GeoIP habilitado, você terá:
 - Cidade e coordenadas geográficas
 - Nome da organização/provedor
 
-## Passo a Passo
+## Download automático (o que o install.sh faz)
+
+**Não commite os arquivos `.mmdb`/`.tar.gz` da MaxMind neste repositório.**
+A licença gratuita do GeoLite2 não permite redistribuir os bancos a
+terceiros, e este repositório é público - publicar os arquivos aqui
+equivaleria a redistribuição pública, o que pode gerar takedown do GitHub.
+
+Em vez disso, o `scripts/install.sh` baixa os bancos diretamente da
+MaxMind usando sua própria license key gratuita (passo a passo abaixo
+para gerar a sua). Durante a instalação ele pergunta se você quer
+configurar GeoIP agora e, se sim, pede a license key uma única vez -
+ela fica salva em `MAXMIND_LICENSE_KEY` no seu `.env` (que é local,
+gitignored) e não é pedida de novo em instalações futuras.
+
+Para atualizar os bancos depois (a MaxMind atualiza semanalmente), rode
+de novo:
+
+```bash
+rm data/geoip/*.mmdb
+./scripts/install.sh
+./scripts/manage.sh restart
+```
+
+## Passo a Passo (gerar sua license key)
 
 ### 1. Criar Conta MaxMind (Gratuito)
 
@@ -27,9 +50,14 @@ Com GeoIP habilitado, você terá:
 4. Confirme "Will you be using this key for GeoIP Update?" = **No**
 5. Copie e salve sua License Key (você só verá uma vez!)
 
+Com a license key em mãos, rode `./scripts/install.sh` (ou responda "s"
+quando ele perguntar sobre GeoIP numa instalação já existente) e cole a
+key quando for pedida. As opções manuais abaixo só são necessárias se
+você preferir baixar/copiar os arquivos você mesmo.
+
 ### 3. Baixar Bancos de Dados
 
-#### Opção A: Download Manual (Recomendado)
+#### Opção A: Download Manual
 
 1. No painel MaxMind, vá em: **Account → Download Databases**
 2. Baixe os seguintes arquivos:
@@ -110,31 +138,29 @@ LIMIT 10
 "
 ```
 
-## Atualização Automática (Opcional)
+## Configuração no Orchestrator
 
-Para atualização automática dos bancos GeoIP, edite `config/akvorado.yaml`:
+A configuração real fica em `config/akvorado-orchestrator.yaml` (gerado
+automaticamente pelo `scripts/install.sh` a partir do template
+`config/akvorado-orchestrator.yaml.example`, já pré-configurado):
 
 ```yaml
 geoip:
-  enabled: true
-
-  # Databases
-  asn-database: /var/lib/geoip/GeoLite2-ASN.mmdb
-  country-database: /var/lib/geoip/GeoLite2-Country.mmdb
-  city-database: /var/lib/geoip/GeoLite2-City.mmdb
-
-  # Habilitar atualização automática
-  auto-update:
-    enabled: true
-    account-id: YOUR_ACCOUNT_ID
-    license-key: YOUR_LICENSE_KEY
-    interval: 168h  # Semanal
+  asn-database:
+    - /var/lib/geoip/GeoLite2-ASN.mmdb
+  geo-database:
+    - /var/lib/geoip/GeoLite2-Country.mmdb
+    - /var/lib/geoip/GeoLite2-City.mmdb
+  optional: true
 ```
 
-Depois reinicie:
-```bash
-docker-compose restart
-```
+`asn-database` e `geo-database` aceitam uma lista de caminhos; quando mais
+de um é informado, os dados do último da lista têm prioridade sobre os
+anteriores (por isso o City vem depois do Country). `optional: true` evita
+que o orchestrator falhe ao subir caso os `.mmdb` ainda não existam.
+Não existe uma opção de atualização automática nativa nesta versão do
+Akvorado - os arquivos `.mmdb` são recarregados automaticamente pelo
+orchestrator quando o conteúdo é atualizado em disco.
 
 ## Troubleshooting
 

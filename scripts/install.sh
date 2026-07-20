@@ -159,15 +159,66 @@ setup_environment() {
 download_geoip() {
     log_info "Configurando bancos de dados GeoIP..."
 
-    if [ ! -f data/geoip/GeoLite2-ASN.mmdb ] || [ ! -f data/geoip/GeoLite2-Country.mmdb ]; then
-        log_warn "Bancos de dados GeoIP não encontrados"
-        log_info "Para usar GeoIP, você precisa:"
-        log_info "1. Criar uma conta gratuita em: https://www.maxmind.com/en/geolite2/signup"
-        log_info "2. Baixar os arquivos GeoLite2-ASN.mmdb, GeoLite2-Country.mmdb e GeoLite2-City.mmdb"
-        log_info "3. Colocar os arquivos em: data/geoip/"
-        log_warn "O Akvorado funcionará sem GeoIP, mas sem informações de país/ASN"
+    if [ -f data/geoip/GeoLite2-ASN.mmdb ] && [ -f data/geoip/GeoLite2-Country.mmdb ]; then
+        log_info "Bancos de dados GeoIP já presentes em data/geoip/"
+        return
+    fi
+
+    # Reaproveita a license key se já estiver salva no .env de uma
+    # instalação anterior, para não perguntar de novo
+    local license_key
+    license_key=$(grep -E '^MAXMIND_LICENSE_KEY=' .env 2>/dev/null | cut -d'=' -f2-)
+
+    if [ -z "$license_key" ]; then
+        log_warn "Bancos de dados GeoIP (MaxMind GeoLite2) não encontrados"
+        log_info "São gratuitos, mas exigem uma conta + license key MaxMind:"
+        log_info "  https://www.maxmind.com/en/geolite2/signup"
+        echo ""
+        read -p "Baixar os bancos GeoIP agora? (s/N) " -n 1 -r
+        echo ""
+        if [[ ! $REPLY =~ ^[Ss]$ ]]; then
+            log_warn "Pulando GeoIP. O Akvorado funcionará sem informações de país/ASN."
+            log_info "Você pode configurar depois - veja GEOIP_SETUP.md"
+            return
+        fi
+
+        read -p "MaxMind License Key: " license_key
+        if [ -z "$license_key" ]; then
+            log_warn "License key vazia, pulando GeoIP."
+            return
+        fi
+
+        # Salva no .env para não perguntar de novo em uma próxima instalação
+        grep -v -E '^MAXMIND_LICENSE_KEY=' .env > .env.tmp || true
+        { cat .env.tmp; echo "MAXMIND_LICENSE_KEY=${license_key}"; } > .env
+        rm -f .env.tmp
     else
-        log_info "Bancos de dados GeoIP encontrados"
+        log_info "Usando MAXMIND_LICENSE_KEY salva em .env"
+    fi
+
+    local tmp_dir edition failed
+    tmp_dir=$(mktemp -d)
+    failed=0
+
+    for edition in GeoLite2-ASN GeoLite2-Country GeoLite2-City; do
+        log_info "Baixando ${edition}..."
+        if curl -sfL -o "${tmp_dir}/${edition}.tar.gz" \
+            "https://download.maxmind.com/app/geoip_download?edition_id=${edition}&license_key=${license_key}&suffix=tar.gz"; then
+            tar -xzf "${tmp_dir}/${edition}.tar.gz" -C "$tmp_dir"
+        else
+            log_warn "Falha ao baixar ${edition} (license key inválida ou sem conexão?)"
+            failed=1
+        fi
+    done
+
+    find "$tmp_dir" -name "*.mmdb" -exec cp -f {} data/geoip/ \;
+    rm -rf "$tmp_dir"
+
+    if [ -f data/geoip/GeoLite2-ASN.mmdb ]; then
+        log_info "Bancos de dados GeoIP prontos:"
+        ls -1 data/geoip/*.mmdb | sed 's/^/  - /'
+    elif [ $failed -eq 1 ]; then
+        log_warn "Não foi possível baixar os bancos GeoIP. O Akvorado funcionará sem GeoIP."
     fi
 }
 

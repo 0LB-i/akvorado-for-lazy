@@ -117,19 +117,10 @@ serviços que pedem autenticação).
 
 ### 3. (Opcional) Configure GeoIP
 
-Para ter informações de geolocalização e ASN:
-
-1. Crie uma conta gratuita no MaxMind: https://www.maxmind.com/en/geolite2/signup
-2. Baixe os arquivos:
-   - GeoLite2-ASN.mmdb
-   - GeoLite2-Country.mmdb
-   - GeoLite2-City.mmdb
-3. Coloque em `data/geoip/`
-
-```bash
-mkdir -p data/geoip
-# Copie os arquivos .mmdb para data/geoip/
-```
+Para ter informações de geolocalização e ASN, crie uma conta gratuita e
+gere uma license key em https://www.maxmind.com/en/geolite2/signup - o
+script de instalação (próximo passo) pergunta a key e baixa os bancos
+GeoLite2 automaticamente. Detalhes e alternativas em [GEOIP_SETUP.md](GEOIP_SETUP.md).
 
 ### 4. Execute a instalação
 

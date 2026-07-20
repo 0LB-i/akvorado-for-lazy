@@ -19,6 +19,18 @@ kafka:
     - kafka:9092
   topic: flows
 
+# Bancos GeoIP2/GeoLite2 (extraídos automaticamente de geoip/*.tar.gz
+# pelo scripts/install.sh para data/geoip/, montado em /var/lib/geoip)
+# optional: true evita que o orchestrator falhe ao subir se os bancos
+# ainda não tiverem sido extraídos.
+geoip:
+  asn-database:
+    - /var/lib/geoip/GeoLite2-ASN.mmdb
+  geo-database:
+    - /var/lib/geoip/GeoLite2-Country.mmdb
+    - /var/lib/geoip/GeoLite2-City.mmdb
+  optional: true
+
 # Configuração padrão para outlets (lista)
 outlet:
   - metadata:

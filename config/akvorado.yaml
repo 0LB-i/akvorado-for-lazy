@@ -107,20 +107,18 @@ inlet:
   default-sampling-rate: 1000
 
 # Configuração de GeoIP e ASN
+# Schema real do orchestrator v2.0.4: asn-database e geo-database são
+# listas de caminhos (não existe mais country-database/city-database
+# separados nem uma chave "enabled" - a seção só passa a valer quando
+# presente). "optional: true" evita falha na subida se os .mmdb ainda
+# não tiverem sido extraídos.
 geoip:
-  enabled: true
-
-  # Databases GeoIP2
-  asn-database: /var/lib/geoip/GeoLite2-ASN.mmdb
-  country-database: /var/lib/geoip/GeoLite2-Country.mmdb
-  city-database: /var/lib/geoip/GeoLite2-City.mmdb
-
-  # Atualização automática (requer licença MaxMind)
-  auto-update:
-    enabled: false
-    # account-id: YOUR_MAXMIND_ACCOUNT_ID
-    # license-key: YOUR_MAXMIND_LICENSE_KEY
-    interval: 168h  # Semanal
+  asn-database:
+    - /var/lib/geoip/GeoLite2-ASN.mmdb
+  geo-database:
+    - /var/lib/geoip/GeoLite2-Country.mmdb
+    - /var/lib/geoip/GeoLite2-City.mmdb
+  optional: true
 
 # Configuração do Orchestrator
 orchestrator:

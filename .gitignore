@@ -6,3 +6,8 @@ config/akvorado-orchestrator.yaml
 data/
 logs/
 backups/
+
+# Bancos MaxMind GeoLite2 - não redistribuir (licença MaxMind proíbe
+# redistribuição pública). scripts/install.sh baixa isso com sua própria
+# license key gratuita.
+geoip/
