@@ -120,6 +120,31 @@ setup_environment() {
     mkdir -p logs
     mkdir -p config
 
+    # Gerar config/akvorado-orchestrator.yaml a partir do template,
+    # aplicando as credenciais definidas no .env (só na primeira vez)
+    if [ ! -f config/akvorado-orchestrator.yaml ]; then
+        if [ -f config/akvorado-orchestrator.yaml.example ]; then
+            log_info "Gerando config/akvorado-orchestrator.yaml a partir do template..."
+            local db_user db_password
+            db_user=$(grep -E '^CLICKHOUSE_USER=' .env | cut -d'=' -f2-)
+            db_password=$(grep -E '^CLICKHOUSE_PASSWORD=' .env | cut -d'=' -f2-)
+            db_user=${db_user:-akvorado}
+            db_password=${db_password:-akvorado123}
+
+            # Escapa \, & e o delimitador | para uso seguro no lado direito do sed
+            db_user=$(printf '%s' "$db_user" | sed -e 's/[\&|]/\\&/g')
+            db_password=$(printf '%s' "$db_password" | sed -e 's/[\&|]/\\&/g')
+
+            sed \
+                -e "s|__AKVORADO_DB_USER__|${db_user}|g" \
+                -e "s|__AKVORADO_DB_PASSWORD__|${db_password}|g" \
+                config/akvorado-orchestrator.yaml.example > config/akvorado-orchestrator.yaml
+        else
+            log_error "Template config/akvorado-orchestrator.yaml.example não encontrado"
+            exit 1
+        fi
+    fi
+
     # Ajustar permissões
     log_info "Ajustando permissões..."
     chmod -R 755 data

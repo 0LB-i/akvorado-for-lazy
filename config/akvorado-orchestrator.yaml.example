@@ -8,8 +8,8 @@ clickhouse:
   servers:
     - clickhouse:9000
   database: akvorado
-  username: akvorado
-  password: akvorado123
+  username: __AKVORADO_DB_USER__
+  password: __AKVORADO_DB_PASSWORD__
   kafka:
     brokers:
       - kafka:9092

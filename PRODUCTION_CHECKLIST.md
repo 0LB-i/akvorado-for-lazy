@@ -132,7 +132,6 @@ Exemplo cron para backup:
 ### Métricas
 
 - [ ] Configurar Prometheus para coletar métricas
-- [ ] Criar dashboards no Grafana
 - [ ] Monitorar flows recebidos por segundo
 - [ ] Monitorar latência de processamento
 - [ ] Monitorar uso de recursos

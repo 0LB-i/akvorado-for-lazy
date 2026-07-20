@@ -193,8 +193,8 @@ services:
           servers:
             - "clickhouse:9000"
           database: "akvorado"
-          username: "akvorado"
-          password: "akvorado123"
+          username: "${CLICKHOUSE_USER:-akvorado}"
+          password: "${CLICKHOUSE_PASSWORD:-akvorado123}"
         EOF
         exec /usr/local/bin/akvorado console /tmp/config.yaml
     depends_on:
@@ -207,32 +207,6 @@ services:
       - akvorado-network
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # Grafana - Dashboards e visualizações
-  grafana:
-    image: grafana/grafana:latest
-    container_name: akvorado-grafana
-    restart: unless-stopped
-    depends_on:
-      - clickhouse
-    ports:
-      - "${GRAFANA_PORT:-3000}:3000"
-    volumes:
-      - ./data/grafana:/var/lib/grafana
-      - ./config/grafana/provisioning:/etc/grafana/provisioning
-    environment:
-      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
-      - GF_INSTALL_PLUGINS=grafana-clickhouse-datasource
-      - GF_SERVER_ROOT_URL=http://localhost:3000
-      - GF_AUTH_ANONYMOUS_ENABLED=false
-    networks:
-      - akvorado-network
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -250,4 +224,3 @@ volumes:
   kafka-data:
   zookeeper-data:
   akvorado-run:
-  grafana-data:

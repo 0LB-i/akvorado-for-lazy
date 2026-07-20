@@ -1,0 +1,8 @@
+# Gerados pelo bootstrap/install (contêm credenciais reais)
+.env
+config/akvorado-orchestrator.yaml
+
+# Dados persistentes e logs
+data/
+logs/
+backups/

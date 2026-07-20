@@ -120,7 +120,6 @@ nano config/akvorado.yaml
 - Configure dispositivos de rede
 - Ajuste retenção de dados em `config/akvorado.yaml`
 - Configure alertas e notificações
-- Integre com Grafana para dashboards
 - Configure backup automático
 
 ## Documentação Completa

@@ -78,22 +78,40 @@ Este projeto implementa a stack completa do Akvorado:
 - Docker Compose 2.0+ (ou docker-compose 1.29+)
 - Sistema Operacional: Linux (Ubuntu 20.04+, Debian 11+, CentOS 8+)
 
+## Instalação em uma VM nova (Rocky Linux 9)
+
+Para uma VM Rocky Linux 9 zerada, use o script `bootstrap.sh`: ele instala o
+Docker, clona este repositório em `/opt/akvorado`, pergunta o usuário/senha
+do banco de dados (usado em todos os serviços que exigem autenticação:
+ClickHouse e Redis) e sobe a stack completa.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/0LB-i/akvorado-for-lazy/main/bootstrap.sh -o bootstrap.sh
+sudo bash bootstrap.sh
+```
+
+Se preferir gerar a senha automaticamente, basta deixar o prompt de senha em
+branco. Depois disso, pule direto para a seção [Acesse as interfaces web](#5-acesse-as-interfaces-web).
+
 ## Instalação Rápida
 
 ### 1. Clone o repositório
 
 ```bash
-git clone <seu-repositorio>
-cd akvorado
+git clone https://github.com/0LB-i/akvorado-for-lazy.git
+cd akvorado-for-lazy
 ```
 
 ### 2. Configure as variáveis de ambiente
 
 ```bash
-# O arquivo .env já vem pré-configurado
-# Para produção, edite e altere as senhas:
+cp .env.example .env
 nano .env
 ```
+
+Defina `CLICKHOUSE_USER`, `CLICKHOUSE_PASSWORD` e `REDIS_PASSWORD` (use a
+mesma senha nas duas, é o mesmo usuário/senha único usado em todos os
+serviços que pedem autenticação).
 
 **IMPORTANTE**: Mude as senhas padrão antes de usar em produção!
 
@@ -132,7 +150,6 @@ O script irá:
 
 Abra o navegador em:
 - **Console Akvorado**: http://localhost:8000
-- **Grafana Dashboards**: http://localhost:3000 (usuário: admin, senha: admin)
 
 ## Instalação Manual
 
@@ -214,7 +231,6 @@ chmod +x scripts/manage.sh
 | Redis | 6379 | TCP | Cache |
 | Kafka | 9092 | TCP | Message broker |
 | Zookeeper | 2181 | TCP | Coordenação Kafka |
-| Grafana | 3000 | TCP | Dashboards |
 | NetFlow | 2055 | UDP | Recepção NetFlow |
 | sFlow | 6343 | UDP | Recepção sFlow |
 | IPFIX | 4739 | UDP | Recepção IPFIX |
@@ -222,22 +238,24 @@ chmod +x scripts/manage.sh
 ## Estrutura de Diretórios
 
 ```
-akvorado/
-├── config/                    # Arquivos de configuração
-│   ├── akvorado.yaml         # Configuração principal
-│   └── clickhouse/           # Configs customizadas ClickHouse
-├── data/                     # Dados persistentes
+akvorado-for-lazy/
+├── config/                              # Arquivos de configuração
+│   ├── akvorado-orchestrator.yaml.example  # Template (gera akvorado-orchestrator.yaml)
+│   ├── akvorado-inlet.yaml
+│   └── clickhouse/                      # Configs customizadas ClickHouse
+├── data/                     # Dados persistentes (não versionado)
 │   ├── clickhouse/          # Dados do ClickHouse
 │   ├── redis/               # Dados do Redis
 │   ├── kafka/               # Dados do Kafka
 │   ├── zookeeper/           # Dados do Zookeeper
 │   └── geoip/               # Bancos GeoIP
-├── logs/                    # Logs da aplicação
+├── logs/                    # Logs da aplicação (não versionado)
 ├── scripts/                 # Scripts de automação
-│   ├── install.sh          # Script de instalação
+│   ├── install.sh          # Script de instalação (roda na VM já clonada)
 │   └── manage.sh           # Script de gerenciamento
+├── bootstrap.sh            # Instala dependências + clona + instala (VM nova)
 ├── docker-compose.yml      # Definição dos serviços
-├── .env                    # Variáveis de ambiente
+├── .env                    # Variáveis de ambiente (gerado, não versionado)
 ├── .env.example           # Exemplo de .env
 └── README.md              # Este arquivo
 ```
@@ -448,65 +466,6 @@ docker-compose down
 ```bash
 docker-compose down -v
 rm -rf data/ logs/
-```
-
-## Grafana - Dashboards Personalizados
-
-O Grafana está integrado à stack para criar dashboards personalizados e visualizações avançadas.
-
-### Acessar o Grafana
-
-**URL**: http://localhost:3000
-
-**Credenciais padrão**:
-- Usuário: `admin`
-- Senha: `admin`
-
-O Grafana pedirá para alterar a senha no primeiro acesso.
-
-### Datasource ClickHouse
-
-O datasource do ClickHouse já está pré-configurado automaticamente:
-- Nome: **Akvorado ClickHouse**
-- Conecta ao banco de dados `akvorado` no ClickHouse
-- Pronto para usar em dashboards
-
-### Guia Completo
-
-Consulte o arquivo **[GRAFANA.md](GRAFANA.md)** para:
-- Exemplos de queries prontas para usar
-- Como criar dashboards
-- Queries de análise de segurança e DDoS
-- Time series de tráfego
-- Top protocolos, ASNs, países, portas
-- Configuração de alertas
-- Dashboard templates
-
-### Exemplos Rápidos
-
-**Tráfego Total em Gbps (últimas 24h)**:
-```sql
-SELECT
-    toStartOfInterval(TimeReceived, INTERVAL 5 MINUTE) AS time,
-    sum(Bytes * 8) / 1000000000 / 300 AS gbps
-FROM akvorado.flows
-WHERE TimeReceived >= now() - INTERVAL 24 HOUR
-GROUP BY time
-ORDER BY time
-```
-
-**Top 10 ASNs**:
-```sql
-SELECT
-    SrcAS,
-    dictGet('akvorado.asns', 'name', SrcAS) AS asn_name,
-    formatReadableSize(sum(Bytes)) AS total_traffic
-FROM akvorado.flows
-WHERE TimeReceived >= now() - INTERVAL 24 HOUR
-  AND SrcAS > 0
-GROUP BY SrcAS
-ORDER BY sum(Bytes) DESC
-LIMIT 10
 ```
 
 ## Integração com Kafka
