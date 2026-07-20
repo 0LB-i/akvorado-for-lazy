@@ -1,0 +1,40 @@
+# Configuração completa para Akvorado Outlet
+# Modo standalone - todas as configurações incluídas
+
+http:
+  listen: 0.0.0.0:8080
+
+kafka:
+  topic: flows-v5
+  brokers:
+    - kafka:9092
+  version: "2.1.0"
+
+clickhouse:
+  servers:
+    - clickhouse:9000
+  database: akvorado
+  username: akvorado
+  password: akvorado123
+  max-open-conns: 5
+
+metadata:
+  workers: 10
+  cache-persist-file: /run/akvorado/metadata.cache
+  providers:
+    - type: snmp
+      credentials:
+        ::/0:
+          communities:
+            - public
+
+core:
+  exporter-classifiers:
+    - ClassifyRegion("default")
+    - ClassifyTenant("default")
+    - ClassifyRole("edge")
+  interface-classifiers:
+    - ClassifyInternal()
+
+flow:
+  state-persist-file: /run/akvorado/flow.state

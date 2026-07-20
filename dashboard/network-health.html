@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Akvorado - Diagnóstico de Rede</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 50%, #7c3aed 100%);
+            background-size: 200% 200%;
+            animation: gradientShift 15s ease infinite;
+            color: #333;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .header {
+            background: linear-gradient(135deg, #ffffff 0%, #fafbff 100%);
+            padding: 25px 35px;
+            border-radius: 15px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+            margin-bottom: 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: 2.2em;
+            font-weight: 800;
+        }
+
+        .nav-menu {
+            display: flex;
+            gap: 12px;
+        }
+
+        .nav-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 0.95em;
+            font-weight: 600;
+            transition: all 0.3s;
+            box-shadow: 0 4px 10px rgba(102,126,234,0.3);
+        }
+
+        .nav-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(102,126,234,0.4);
+        }
+
+        .refresh-btn {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: linear-gradient(135deg, #ffffff 0%, #fafbff 100%);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.08), 0 0 0 1px rgba(102,126,234,0.05);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #0ea5e9 0%, #2563eb 50%, #7c3aed 100%);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-8px) scale(1.01);
+            box-shadow: 0 15px 40px rgba(14,165,233,0.2);
+        }
+
+        .card:hover::before {
+            opacity: 1;
+        }
+
+        .card h2 {
+            background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            font-weight: 700;
+            border-bottom: 2px solid rgba(14,165,233,0.1);
+            padding-bottom: 12px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th, td {
+            padding: 14px;
+            text-align: left;
+            border-bottom: 1px solid rgba(102,126,234,0.08);
+        }
+
+        th {
+            background: linear-gradient(135deg, rgba(14,165,233,0.05) 0%, rgba(37,99,235,0.05) 100%);
+            font-weight: 700;
+            color: #374151;
+            text-transform: uppercase;
+            font-size: 0.8em;
+            letter-spacing: 0.5px;
+            position: sticky;
+            top: 0;
+        }
+
+        tr:hover {
+            background: rgba(14,165,233,0.02);
+        }
+
+        .ip-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            font-weight: 600;
+            color: #1e40af;
+            border: 1px solid rgba(37,99,235,0.2);
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 18px;
+            border-bottom: 1px solid rgba(14,165,233,0.08);
+            background: linear-gradient(135deg, rgba(255,255,255,0.5) 0%, rgba(219,234,254,0.3) 100%);
+            margin: 8px -5px;
+            border-radius: 10px;
+            transition: all 0.2s;
+        }
+
+        .metric:hover {
+            background: linear-gradient(135deg, rgba(14,165,233,0.05) 0%, rgba(37,99,235,0.05) 100%);
+            transform: translateX(5px);
+        }
+
+        .metric:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            font-weight: 600;
+            color: #64748b;
+            font-size: 0.95em;
+        }
+
+        .metric-value {
+            font-size: 1.5em;
+            font-weight: 800;
+            background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .chart-container {
+            height: 350px;
+            margin-top: 15px;
+        }
+
+        .critical {
+            color: #dc2626;
+            font-weight: bold;
+        }
+
+        .warning {
+            color: #f59e0b;
+            font-weight: bold;
+        }
+
+        .good {
+            color: #10b981;
+        }
+
+        .info {
+            color: #3b82f6;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .status-healthy {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-degraded {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-critical {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .filter-panel {
+            background: linear-gradient(135deg, #ffffff 0%, #fafbff 100%);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+        }
+
+        .filter-panel select, .filter-panel input {
+            padding: 10px 15px;
+            border: 2px solid rgba(102,126,234,0.2);
+            border-radius: 8px;
+            margin-right: 10px;
+            font-size: 0.95em;
+            transition: all 0.3s;
+        }
+
+        .filter-panel select:focus, .filter-panel input:focus {
+            outline: none;
+            border-color: #0ea5e9;
+            box-shadow: 0 0 0 3px rgba(14,165,233,0.1);
+        }
+
+        .alert-box {
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            border-left: 4px solid;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .alert-critical {
+            background: #fee2e2;
+            border-color: #dc2626;
+            color: #991b1b;
+        }
+
+        .alert-warning {
+            background: #fef3c7;
+            border-color: #f59e0b;
+            color: #92400e;
+        }
+
+        .alert-info {
+            background: #dbeafe;
+            border-color: #3b82f6;
+            color: #1e40af;
+        }
+
+        .provider-name {
+            font-weight: 600;
+            color: #374151;
+            font-size: 0.9em;
+        }
+
+        .percentage-bar {
+            width: 100%;
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+
+        .percentage-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981, #059669);
+            transition: width 0.3s;
+        }
+
+        .percentage-fill.warning {
+            background: linear-gradient(90deg, #f59e0b, #d97706);
+        }
+
+        .percentage-fill.critical {
+            background: linear-gradient(90deg, #ef4444, #dc2626);
+        }
+
+        .interface-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+            border-radius: 6px;
+            font-family: monospace;
+            font-weight: 600;
+            font-size: 0.85em;
+            color: #4338ca;
+        }
+
+        .country-flag {
+            font-size: 1.3em;
+            margin-right: 5px;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <h1>🏥 Diagnóstico de Saúde da Rede</h1>
+            <small style="color: #6b7280;">Detecção de Problemas e Anomalias</small>
+        </div>
+        <div class="nav-menu">
+            <a href="index.html" class="nav-btn">📊 Dashboard Principal</a>
+            <a href="cgnat-analysis.html" class="nav-btn">🔍 Análise CGNAT</a>
+            <a href="asn-analysis.html" class="nav-btn">🌐 Análise ASN</a>
+            <a href="attack-analysis.html" class="nav-btn">🛡️ Análise de Ataques</a>
+            <button class="refresh-btn nav-btn" onclick="refreshAll()">🔄 Atualizar</button>
+        </div>
+    </div>
+
+    <div class="filter-panel">
+        <strong>Período de Análise:</strong>
+        <select id="time-range">
+            <option value="1">Última 1 hora</option>
+            <option value="6">Últimas 6 horas</option>
+            <option value="24" selected>Últimas 24 horas</option>
+            <option value="168">Última semana</option>
+        </select>
+        <button class="refresh-btn nav-btn" onclick="refreshAll()">Aplicar Filtros</button>
+    </div>
+
+    <!-- Alertas -->
+    <div id="health-alerts"></div>
+
+    <div class="dashboard-grid">
+        <!-- Resumo de Saúde -->
+        <div class="card">
+            <h2>📊 Resumo de Saúde da Rede</h2>
+            <div id="health-summary">
+                <div class="metric">
+                    <span class="metric-label">Status Geral</span>
+                    <span class="metric-value" id="overall-health">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Problemas Críticos</span>
+                    <span class="metric-value" id="critical-issues">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Avisos</span>
+                    <span class="metric-value" id="warnings">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Interfaces Monitoradas</span>
+                    <span class="metric-value" id="monitored-interfaces">-</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Score de Saúde -->
+        <div class="card">
+            <h2>💯 Score de Saúde da Rede</h2>
+            <div class="chart-container">
+                <canvas id="health-score-chart"></canvas>
+            </div>
+        </div>
+
+        <!-- Assimetria de Tráfego -->
+        <div class="card full-width">
+            <h2>⚖️ Assimetria de Tráfego (Possível Problema de Roteamento)</h2>
+            <table id="asymmetry-table">
+                <thead>
+                    <tr>
+                        <th>IP</th>
+                        <th>País</th>
+                        <th>Provedor</th>
+                        <th>Tráfego Enviado</th>
+                        <th>Tráfego Recebido</th>
+                        <th>Razão (Enviado/Recebido)</th>
+                        <th>Severidade</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="7" style="text-align: center;">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Blackholes de Rede -->
+        <div class="card full-width">
+            <h2>🕳️ Blackholes de Rede (Destinos Sem Resposta)</h2>
+            <table id="blackholes-table">
+                <thead>
+                    <tr>
+                        <th>Destino</th>
+                        <th>País</th>
+                        <th>Provedor</th>
+                        <th>Fontes Afetadas</th>
+                        <th>Pacotes Enviados</th>
+                        <th>Bytes Enviados</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="7" style="text-align: center;">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Fragmentação de Pacotes -->
+        <div class="card full-width">
+            <h2>🧩 Fragmentação de Pacotes (Possível Problema de MTU)</h2>
+            <table id="fragmentation-table">
+                <thead>
+                    <tr>
+                        <th>IP Origem</th>
+                        <th>IP Destino</th>
+                        <th>Total de Flows</th>
+                        <th>Tamanho Médio (bytes)</th>
+                        <th>Pacotes Pequenos (<64b)</th>
+                        <th>% Fragmentação</th>
+                        <th>Problema</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="7" style="text-align: center;">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Concentração de Tráfego -->
+        <div class="card full-width">
+            <h2>🎯 Concentração de Tráfego (Possível Falta de Balanceamento)</h2>
+            <table id="concentration-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Destino</th>
+                        <th>País</th>
+                        <th>Provedor</th>
+                        <th>Fontes Conectando</th>
+                        <th>% do Tráfego Total</th>
+                        <th>Volume</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="7" style="text-align: center;">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Saúde das Interfaces -->
+        <div class="card full-width">
+            <h2>🔌 Saúde das Interfaces de Rede</h2>
+            <table id="interfaces-table">
+                <thead>
+                    <tr>
+                        <th>Interface</th>
+                        <th>Direção</th>
+                        <th>Flows</th>
+                        <th>Bytes</th>
+                        <th>Utilização</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="6" style="text-align: center;">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Falhas de Conexão -->
+        <div class="card full-width">
+            <h2>❌ Falhas de Conexão (Flows Curtos)</h2>
+            <table id="connection-failures-table">
+                <thead>
+                    <tr>
+                        <th>IP Origem</th>
+                        <th>IP Destino</th>
+                        <th>Porta</th>
+                        <th>Tentativas Falhadas</th>
+                        <th>Taxa de Falha</th>
+                        <th>Possível Causa</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="6" style="text-align: center;">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Top Protocolos Anômalos -->
+        <div class="card full-width">
+            <h2>🔬 Protocolos e Portas Anômalas</h2>
+            <table id="anomalous-protocols-table">
+                <thead>
+                    <tr>
+                        <th>Porta</th>
+                        <th>Protocolo</th>
+                        <th>Flows</th>
+                        <th>IPs Únicos</th>
+                        <th>Volume</th>
+                        <th>Tipo de Anomalia</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="6" style="text-align: center;">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Timeline de Problemas -->
+        <div class="card full-width">
+            <h2>⏱️ Timeline de Problemas - Últimas 24h</h2>
+            <div class="chart-container" style="height: 400px;">
+                <canvas id="problems-timeline-chart"></canvas>
+            </div>
+        </div>
+
+        <!-- Top ASNs com Problemas -->
+        <div class="card full-width">
+            <h2>🌐 Provedores (ASN) com Mais Problemas</h2>
+            <table id="asn-problems-table">
+                <thead>
+                    <tr>
+                        <th>ASN</th>
+                        <th>Provedor</th>
+                        <th>País</th>
+                        <th>Problemas Detectados</th>
+                        <th>Tipo Principal</th>
+                        <th>Severidade</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="6" style="text-align: center;">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="network-health.js"></script>
+</body>
+</html>

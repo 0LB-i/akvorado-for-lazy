@@ -1,0 +1,35 @@
+# Configuração para Akvorado Orchestrator
+# O orchestrator gerencia schema e integração com ClickHouse/Kafka
+
+http:
+  listen: 0.0.0.0:8080
+
+clickhouse:
+  servers:
+    - clickhouse:9000
+  database: akvorado
+  username: akvorado
+  password: akvorado123
+  kafka:
+    brokers:
+      - kafka:9092
+
+kafka:
+  brokers:
+    - kafka:9092
+  topic: flows
+
+# Configuração padrão para outlets (lista)
+outlet:
+  - metadata:
+      workers: 10
+      cache-persist-file: /run/akvorado/metadata.cache
+      query-timeout: 5s
+      providers:
+        - type: snmp
+          credentials:
+            ::/0:
+              communities:
+                - public
+          poller-retries: 3
+          poller-timeout: 5s

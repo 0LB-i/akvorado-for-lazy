@@ -1,0 +1,25 @@
+# Configuração para Akvorado Outlet
+# Lê flows do Kafka e escreve no ClickHouse
+# Baseado na configuração oficial do Akvorado v2.0.4
+
+---
+# SNMP metadata provider configuration
+# Using SNMPv2 with custom community string for Huawei NE8000 router
+metadata:
+  workers: 10
+  providers:
+    - type: snmp
+      credentials:
+        ::/0:
+          communities:
+            - public
+
+# Core configuration - classifiers to accept all flows
+core:
+  exporter-classifiers:
+    - ClassifyRegion("default")
+    - ClassifyTenant("default")
+    - Exporter.Name == "CGNAT_STAR_GTI_ST_0" && ClassifyRole("cgnat")
+    - ClassifyRole("edge")
+  # interface-classifiers removido - sem redes customizadas configuradas
+  # o InIfBoundary/OutIfBoundary ficará como "undefined" que é o esperado

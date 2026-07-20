@@ -1,0 +1,253 @@
+services:
+  # ClickHouse - Database para armazenamento de flows
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: akvorado-clickhouse
+    restart: unless-stopped
+    ports:
+      - "${CLICKHOUSE_HTTP_PORT:-8123}:8123"
+      - "${CLICKHOUSE_NATIVE_PORT:-9000}:9000"
+    volumes:
+      - ./data/clickhouse:/var/lib/clickhouse
+      - ./config/clickhouse:/etc/clickhouse-server/config.d
+    environment:
+      - CLICKHOUSE_DB=${CLICKHOUSE_DB:-akvorado}
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER:-akvorado}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-akvorado123}
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    networks:
+      - akvorado-network
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis - Cache e armazenamento temporário
+  redis:
+    image: redis:7-alpine
+    container_name: akvorado-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - ./data/redis:/data
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123}
+    networks:
+      - akvorado-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Zookeeper - Necessário para Kafka
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: akvorado-zookeeper
+    restart: unless-stopped
+    ports:
+      - "${ZOOKEEPER_PORT:-2181}:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - ./data/zookeeper:/var/lib/zookeeper
+    networks:
+      - akvorado-network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Kafka - Message broker para exportação
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: akvorado-kafka
+    restart: unless-stopped
+    depends_on:
+      - zookeeper
+    ports:
+      - "${KAFKA_PORT:-9092}:9092"
+      - "${KAFKA_EXTERNAL_PORT:-9093}:9093"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:9093
+    volumes:
+      - ./data/kafka:/var/lib/kafka/data
+    networks:
+      - akvorado-network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Akvorado Orchestrator - Gerenciamento e orquestração
+  akvorado-orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: akvorado-local:latest
+    container_name: akvorado-orchestrator
+    restart: unless-stopped
+    command: ["orchestrator", "/etc/akvorado/config.yaml"]
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "${ORCHESTRATOR_HTTP_PORT:-8080}:8080"
+      - "${ORCHESTRATOR_GRPC_PORT:-8081}:8081"
+    volumes:
+      - ./config/akvorado-orchestrator.yaml:/etc/akvorado/config.yaml:ro
+      - ./data/geoip:/var/lib/geoip:ro
+      - ./logs:/var/log/akvorado
+    networks:
+      - akvorado-network
+    healthcheck:
+      test: ["CMD", "nc", "-zv", "localhost", "8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Akvorado Inlet - Coletor de flows (NetFlow/sFlow/IPFIX)
+  akvorado-inlet:
+    image: akvorado-local:latest
+    container_name: akvorado-inlet
+    restart: unless-stopped
+    command: ["inlet", "/etc/akvorado/config.yaml"]
+    depends_on:
+      - akvorado-orchestrator
+    network_mode: host
+    volumes:
+      - ./config/akvorado-inlet.yaml:/etc/akvorado/config.yaml:ro
+      - ./logs:/var/log/akvorado
+    healthcheck:
+      test: ["CMD", "nc", "-zv", "localhost", "8082"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Akvorado Outlet - Consome do Kafka e escreve no ClickHouse
+  akvorado-outlet:
+    image: akvorado-local:latest
+    container_name: akvorado-outlet
+    restart: unless-stopped
+    stop_grace_period: 30s
+    command: ["outlet", "http://akvorado-orchestrator:8080"]
+    depends_on:
+      akvorado-orchestrator:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    volumes:
+      - ./logs:/var/log/akvorado
+      - akvorado-run:/run/akvorado
+    environment:
+      AKVORADO_CFG_OUTLET_METADATA_CACHEPERSISTFILE: /run/akvorado/metadata.cache
+      AKVORADO_CFG_OUTLET_FLOW_STATEPERSISTFILE: /run/akvorado/flow.state
+      # Core classifiers to accept all flows
+      AKVORADO_CFG_OUTLET_CORE_EXPORTERCLASSIFIERS_0: 'ClassifyRegion("default")'
+      AKVORADO_CFG_OUTLET_CORE_EXPORTERCLASSIFIERS_1: 'ClassifyTenant("default")'
+      AKVORADO_CFG_OUTLET_CORE_EXPORTERCLASSIFIERS_2: 'ClassifyRole("edge")'
+      AKVORADO_CFG_OUTLET_CORE_INTERFACECLASSIFIERS_0: 'ClassifyInternal()'
+    networks:
+      - akvorado-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/api/v0/outlet/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Akvorado Console - Interface Web
+  akvorado-console:
+    image: akvorado-local:latest
+    container_name: akvorado-console
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        cat > /tmp/config.yaml <<EOF
+        http:
+          listen: "0.0.0.0:8000"
+        clickhouse:
+          servers:
+            - "clickhouse:9000"
+          database: "akvorado"
+          username: "akvorado"
+          password: "akvorado123"
+        EOF
+        exec /usr/local/bin/akvorado console /tmp/config.yaml
+    depends_on:
+      - clickhouse
+    ports:
+      - "${CONSOLE_HTTP_PORT:-8000}:8000"
+    volumes:
+      - ./logs:/var/log/akvorado
+    networks:
+      - akvorado-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Grafana - Dashboards e visualizações
+  grafana:
+    image: grafana/grafana:latest
+    container_name: akvorado-grafana
+    restart: unless-stopped
+    depends_on:
+      - clickhouse
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - ./data/grafana:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=grafana-clickhouse-datasource
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+    networks:
+      - akvorado-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  akvorado-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+
+volumes:
+  clickhouse-data:
+  redis-data:
+  kafka-data:
+  zookeeper-data:
+  akvorado-run:
+  grafana-data:

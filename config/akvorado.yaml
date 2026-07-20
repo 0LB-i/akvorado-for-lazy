@@ -1,0 +1,227 @@
+# Configuração do Akvorado para Produção
+# Documentação: https://demo.akvorado.net/docs/intro
+
+# Configuração de Logging
+logging:
+  level: info
+  format: json
+  output: /var/log/akvorado/akvorado.log
+
+# Configuração do ClickHouse
+clickhouse:
+  servers:
+    - clickhouse:9000
+  database: akvorado
+  username: akvorado
+  password: akvorado123
+
+  # Configurações de performance para produção
+  max-execution-time: 60
+  max-memory-usage: 10000000000  # 10GB
+
+  # Retenção de dados
+  retention:
+    # Dados detalhados por 7 dias
+    flows: 168h  # 7 dias
+    # Dados agregados por 90 dias
+    aggregated: 2160h  # 90 dias
+
+# Configuração do Redis
+redis:
+  server: redis:6379
+  password: redis123
+  database: 0
+
+  # Pool de conexões para produção
+  pool-size: 10
+
+  # Cache TTL
+  cache-ttl: 3600  # 1 hora
+
+# Configuração do Kafka (Exportador)
+kafka:
+  enabled: true
+  brokers:
+    - kafka:9092
+
+  # Tópicos
+  topic: akvorado-flows
+
+  # Configurações de performance
+  compression: snappy
+  batch-size: 1000
+  batch-timeout: 1s
+
+  # Formato de exportação
+  export-format: json
+
+  # Campos a exportar
+  export-fields:
+    - TimeReceived
+    - SamplingRate
+    - SrcAddr
+    - DstAddr
+    - SrcPort
+    - DstPort
+    - Protocol
+    - Bytes
+    - Packets
+    - SrcAS
+    - DstAS
+    - SrcCountry
+    - DstCountry
+    - InIfName
+    - OutIfName
+
+# Configuração do Inlet (Coletor)
+inlet:
+  # Configuração de listeners
+  flow:
+    # NetFlow v5/v9
+    netflow:
+      enabled: true
+      listen: 0.0.0.0:2055
+      workers: 4
+
+    # sFlow
+    sflow:
+      enabled: true
+      listen: 0.0.0.0:6343
+      workers: 4
+
+    # IPFIX
+    ipfix:
+      enabled: true
+      listen: 0.0.0.0:4739
+      workers: 4
+
+  # Rate limiting
+  rate-limit:
+    enabled: true
+    max-flows-per-second: 100000
+
+  # Buffer de flows
+  queue-size: 10000
+
+  # Sampling
+  default-sampling-rate: 1000
+
+# Configuração de GeoIP e ASN
+geoip:
+  enabled: true
+
+  # Databases GeoIP2
+  asn-database: /var/lib/geoip/GeoLite2-ASN.mmdb
+  country-database: /var/lib/geoip/GeoLite2-Country.mmdb
+  city-database: /var/lib/geoip/GeoLite2-City.mmdb
+
+  # Atualização automática (requer licença MaxMind)
+  auto-update:
+    enabled: false
+    # account-id: YOUR_MAXMIND_ACCOUNT_ID
+    # license-key: YOUR_MAXMIND_LICENSE_KEY
+    interval: 168h  # Semanal
+
+# Configuração do Orchestrator
+orchestrator:
+  # HTTP API
+  http:
+    listen: 0.0.0.0:8080
+
+  # gRPC API
+  grpc:
+    listen: 0.0.0.0:8081
+
+  # Schema management
+  schema:
+    auto-migrate: true
+
+  # Verificação de saúde
+  health-check-interval: 30s
+
+# Configuração do Console (Web UI)
+console:
+  listen: 0.0.0.0:8000
+
+  # Configurações de UI
+  ui:
+    # Título customizado
+    title: "Akvorado - Network Flow Analyzer"
+
+    # Refresh automático
+    auto-refresh: 30s
+
+    # Time ranges padrão
+    default-time-range: 1h
+
+    # Gráficos
+    chart-max-series: 10
+
+  # Autenticação (desabilitada por padrão)
+  authentication:
+    enabled: false
+    # Para produção, habilite autenticação
+    # type: basic
+    # users:
+    #   - username: admin
+    #     password: $2y$10$... # bcrypt hash
+
+# Enrichment - Enriquecimento de dados
+enrichment:
+  # Interface names (SNMP)
+  snmp:
+    enabled: false
+    # communities:
+    #   - community: public
+    #     version: 2c
+
+  # Classificação de aplicações
+  classification:
+    enabled: true
+    # Classificação baseada em portas
+    port-based: true
+
+# Performance tuning
+performance:
+  # Workers
+  workers: 16
+
+  # Buffer sizes
+  flow-buffer-size: 100000
+  export-buffer-size: 10000
+
+  # Batch processing
+  batch-size: 1000
+  batch-timeout: 1s
+
+  # Compression
+  compression: true
+
+# Alertas e notificações
+alerts:
+  enabled: false
+  # Para produção, configure alertas
+  # providers:
+  #   - type: webhook
+  #     url: https://your-webhook-url
+  #   - type: email
+  #     smtp-host: smtp.gmail.com
+  #     smtp-port: 587
+  #     from: alerts@akvorado.local
+  #     to:
+  #       - admin@company.com
+
+# Métricas e monitoramento
+metrics:
+  enabled: true
+  # Prometheus metrics endpoint
+  listen: 0.0.0.0:9090
+
+  # Métricas customizadas
+  custom-metrics:
+    - name: top_talkers
+      interval: 60s
+    - name: top_protocols
+      interval: 60s
+    - name: top_asn
+      interval: 60s

@@ -1,0 +1,10 @@
+# Configuração de metadata SNMP para o outlet
+# Este arquivo sobrescreve apenas as configurações de metadata
+
+metadata:
+  workers: 10
+  providers:
+    - type: snmp
+      config:
+        communities:
+          default: public

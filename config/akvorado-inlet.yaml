@@ -1,0 +1,35 @@
+# Configuração para Akvorado Inlet
+# Recebe flows via NetFlow, sFlow e IPFIX
+
+http:
+  listen: 0.0.0.0:8082
+
+kafka:
+  brokers:
+    - localhost:9093
+  topic: flows
+
+# Configuração de entrada de flows (direto no nível raiz)
+flow:
+  inputs:
+    # NetFlow v5/v9 na porta 2055
+    - type: udp
+      decoder: netflow
+      listen: :2055
+      workers: 6
+      receive-buffer: 212992
+      use-src-addr-for-exporter-addr: true
+
+    # IPFIX na porta 4739
+    - type: udp
+      decoder: netflow
+      listen: :4739
+      workers: 6
+      receive-buffer: 212992
+
+    # sFlow na porta 6343
+    - type: udp
+      decoder: sflow
+      listen: :6343
+      workers: 6
+      receive-buffer: 212992

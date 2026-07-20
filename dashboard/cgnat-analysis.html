@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Akvorado - Análise CGNAT</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .header {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            color: #667eea;
+            font-size: 2em;
+        }
+
+        .nav-menu {
+            display: flex;
+            gap: 10px;
+        }
+
+        .nav-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 0.9em;
+            transition: background 0.3s;
+        }
+
+        .nav-btn:hover {
+            background: #5568d3;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        th {
+            background: #f9fafb;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        tr:hover {
+            background: #f9fafb;
+        }
+
+        .ip-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            background: #e0e7ff;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+
+        .alert {
+            background: #fef2f2;
+            border-left: 4px solid #ef4444;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+
+        .alert-warning {
+            background: #fffbeb;
+            border-left-color: #f59e0b;
+        }
+
+        .danger {
+            color: #ef4444;
+            font-weight: bold;
+        }
+
+        .warning {
+            color: #f59e0b;
+            font-weight: bold;
+        }
+
+        .safe {
+            color: #10b981;
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        .settings-panel {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .settings-panel input {
+            padding: 8px;
+            border: 1px solid #e5e7eb;
+            border-radius: 5px;
+            margin-right: 10px;
+            font-family: monospace;
+        }
+
+        .refresh-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+        }
+
+        .refresh-btn:hover {
+            background: #5568d3;
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .metric-value {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .port-range {
+            background: #dbeafe;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 0.85em;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <h1>🔍 Análise de Tráfego CGNAT</h1>
+            <small style="color: #6b7280;">Identificação de Clientes e Ataques atrás de NAT</small>
+        </div>
+        <div class="nav-menu">
+            <a href="index.html" class="nav-btn">📊 Dashboard Principal</a>
+            <a href="asn-analysis.html" class="nav-btn">🌐 Análise ASN</a>
+            <a href="attack-analysis.html" class="nav-btn">🛡️ Análise de Ataques</a>
+            <a href="network-health.html" class="nav-btn">🏥 Diagnóstico de Rede</a>
+            <button class="refresh-btn" onclick="refreshAll()">🔄 Atualizar</button>
+        </div>
+    </div>
+
+    <div class="settings-panel">
+        <strong>Configuração CGNAT:</strong>
+        <input type="text" id="cgnat-ips" placeholder="IPs CGNAT (separados por vírgula)" value="200.1.1.1,200.1.1.2" style="width: 300px;">
+        <input type="number" id="port-range-size" placeholder="Tamanho do range" value="1000" style="width: 150px;">
+        <button class="refresh-btn" onclick="saveSettings()">💾 Salvar</button>
+    </div>
+
+    <div class="dashboard-grid">
+        <!-- Resumo CGNAT -->
+        <div class="card">
+            <h2>📈 Resumo CGNAT (1h)</h2>
+            <div id="cgnat-summary">
+                <div class="metric">
+                    <span>IPs Públicos Monitorados</span>
+                    <span class="metric-value" id="total-cgnat-ips">-</span>
+                </div>
+                <div class="metric">
+                    <span>Ranges Ativos</span>
+                    <span class="metric-value" id="active-ranges">-</span>
+                </div>
+                <div class="metric">
+                    <span>Total de Flows</span>
+                    <span class="metric-value" id="total-cgnat-flows">-</span>
+                </div>
+                <div class="metric">
+                    <span>Atividades Suspeitas</span>
+                    <span class="metric-value danger" id="suspicious-count">-</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alertas de Segurança -->
+        <div class="card">
+            <h2>🚨 Alertas de Segurança</h2>
+            <div id="security-alerts">
+                <div class="alert">Carregando alertas...</div>
+            </div>
+        </div>
+
+        <!-- Atividade por Range de Portas -->
+        <div class="card full-width">
+            <h2>📊 Atividade por Range de Portas</h2>
+            <table id="port-range-table">
+                <thead>
+                    <tr>
+                        <th>IP Público</th>
+                        <th>Range de Portas</th>
+                        <th>Flows</th>
+                        <th>Alvos Únicos</th>
+                        <th>Portas Únicas</th>
+                        <th>Bytes</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="7" style="text-align: center;">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Port Scanning Detection -->
+        <div class="card full-width">
+            <h2>🔎 Detecção de Port Scanning</h2>
+            <table id="port-scan-table">
+                <thead>
+                    <tr>
+                        <th>IP Público</th>
+                        <th>Porta Origem</th>
+                        <th>Range Provável</th>
+                        <th>Portas Escaneadas</th>
+                        <th>Alvos</th>
+                        <th>Tentativas</th>
+                        <th>Severidade</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="7" style="text-align: center;">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Ataques por Protocolo -->
+        <div class="card full-width">
+            <h2>⚔️ Possíveis Ataques Detectados</h2>
+            <table id="attacks-table">
+                <thead>
+                    <tr>
+                        <th>IP Público</th>
+                        <th>Porta Origem</th>
+                        <th>Range</th>
+                        <th>Alvo</th>
+                        <th>Porta Destino</th>
+                        <th>Tipo</th>
+                        <th>Tentativas</th>
+                        <th>Ação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="8" style="text-align: center;">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Top Consumidores por Range -->
+        <div class="card full-width">
+            <h2>📶 Top 20 Consumidores (por Range)</h2>
+            <table id="top-consumers-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>IP Público</th>
+                        <th>Range de Portas</th>
+                        <th>Total de Bytes</th>
+                        <th>Total de Flows</th>
+                        <th>Conexões Ativas</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="6" style="text-align: center;">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="cgnat-analysis.js"></script>
+</body>
+</html>

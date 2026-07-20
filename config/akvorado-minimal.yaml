@@ -1,0 +1,17 @@
+# Configuração mínima do Akvorado
+# Apenas configurações válidas para orchestrator e inlet
+
+http:
+  listen: 0.0.0.0:8080
+
+clickhouse:
+  servers:
+    - clickhouse:9000
+  database: akvorado
+  username: akvorado
+  password: akvorado123
+
+kafka:
+  brokers:
+    - kafka:9092
+  topic: flows

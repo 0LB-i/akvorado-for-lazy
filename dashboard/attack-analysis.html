@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Akvorado - Análise de Ataques</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            background-size: 200% 200%;
+            animation: gradientShift 15s ease infinite;
+            color: #333;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .header {
+            background: linear-gradient(135deg, #ffffff 0%, #fafbff 100%);
+            padding: 25px 35px;
+            border-radius: 15px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+            margin-bottom: 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: 2.2em;
+            font-weight: 800;
+        }
+
+        .nav-menu {
+            display: flex;
+            gap: 12px;
+        }
+
+        .nav-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 0.95em;
+            font-weight: 600;
+            transition: all 0.3s;
+            box-shadow: 0 4px 10px rgba(102,126,234,0.3);
+        }
+
+        .nav-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(102,126,234,0.4);
+        }
+
+        .refresh-btn {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: linear-gradient(135deg, #ffffff 0%, #fafbff 100%);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.08), 0 0 0 1px rgba(102,126,234,0.05);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #dc2626 0%, #991b1b 50%, #7f1d1d 100%);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-8px) scale(1.01);
+            box-shadow: 0 15px 40px rgba(220,38,38,0.2);
+        }
+
+        .card:hover::before {
+            opacity: 1;
+        }
+
+        .card h2 {
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            font-weight: 700;
+            border-bottom: 2px solid rgba(220,38,38,0.1);
+            padding-bottom: 12px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th, td {
+            padding: 14px;
+            text-align: left;
+            border-bottom: 1px solid rgba(102,126,234,0.08);
+        }
+
+        th {
+            background: linear-gradient(135deg, rgba(220,38,38,0.05) 0%, rgba(153,27,27,0.05) 100%);
+            font-weight: 700;
+            color: #374151;
+            text-transform: uppercase;
+            font-size: 0.8em;
+            letter-spacing: 0.5px;
+            position: sticky;
+            top: 0;
+            border-radius: 8px;
+        }
+
+        tr:hover {
+            background: rgba(220,38,38,0.02);
+        }
+
+        .ip-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            font-weight: 600;
+            color: #991b1b;
+            border: 1px solid rgba(220,38,38,0.2);
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 18px;
+            border-bottom: 1px solid rgba(220,38,38,0.08);
+            background: linear-gradient(135deg, rgba(255,255,255,0.5) 0%, rgba(254,242,242,0.5) 100%);
+            margin: 8px -5px;
+            border-radius: 10px;
+            transition: all 0.2s;
+        }
+
+        .metric:hover {
+            background: linear-gradient(135deg, rgba(220,38,38,0.05) 0%, rgba(153,27,27,0.05) 100%);
+            transform: translateX(5px);
+        }
+
+        .metric:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            font-weight: 600;
+            color: #64748b;
+            font-size: 0.95em;
+        }
+
+        .metric-value {
+            font-size: 1.5em;
+            font-weight: 800;
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .chart-container {
+            height: 350px;
+            margin-top: 15px;
+        }
+
+        .critical {
+            color: #dc2626;
+            font-weight: bold;
+        }
+
+        .high {
+            color: #ea580c;
+            font-weight: bold;
+        }
+
+        .medium {
+            color: #f59e0b;
+            font-weight: bold;
+        }
+
+        .low {
+            color: #10b981;
+        }
+
+        .attack-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .attack-ddos {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .attack-scan {
+            background: #fed7aa;
+            color: #9a3412;
+        }
+
+        .attack-bruteforce {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .attack-flood {
+            background: #ddd6fe;
+            color: #5b21b6;
+        }
+
+        .attack-web {
+            background: #fbcfe8;
+            color: #831843;
+        }
+
+        .filter-panel {
+            background: linear-gradient(135deg, #ffffff 0%, #fafbff 100%);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+        }
+
+        .filter-panel select, .filter-panel input {
+            padding: 10px 15px;
+            border: 2px solid rgba(102,126,234,0.2);
+            border-radius: 8px;
+            margin-right: 10px;
+            font-size: 0.95em;
+            transition: all 0.3s;
+        }
+
+        .filter-panel select:focus, .filter-panel input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+        }
+
+        .alert-box {
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            border-left: 4px solid;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .alert-critical {
+            background: #fee2e2;
+            border-color: #dc2626;
+            color: #991b1b;
+        }
+
+        .alert-warning {
+            background: #fef3c7;
+            border-color: #f59e0b;
+            color: #92400e;
+        }
+
+        .alert-info {
+            background: #dbeafe;
+            border-color: #3b82f6;
+            color: #1e40af;
+        }
+
+        .provider-name {
+            font-weight: 600;
+            color: #374151;
+            font-size: 0.9em;
+        }
+
+        .asn-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            border-radius: 6px;
+            font-family: monospace;
+            font-weight: 600;
+            font-size: 0.85em;
+            color: #1e40af;
+            border: 1px solid rgba(30,64,175,0.2);
+        }
+
+        .country-flag {
+            font-size: 1.3em;
+            margin-right: 5px;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <h1>🛡️ Análise de Ataques</h1>
+            <small style="color: #6b7280;">Detecção de Ameaças e Picos de Tráfego</small>
+        </div>
+        <div class="nav-menu">
+            <a href="index.html" class="nav-btn">📊 Dashboard Principal</a>
+            <a href="cgnat-analysis.html" class="nav-btn">🔍 Análise CGNAT</a>
+            <a href="asn-analysis.html" class="nav-btn">🌐 Análise ASN</a>
+            <a href="network-health.html" class="nav-btn">🏥 Diagnóstico de Rede</a>
+            <button class="refresh-btn nav-btn" onclick="refreshAll()">🔄 Atualizar</button>
+        </div>
+    </div>
+
+    <div class="filter-panel">
+        <strong>Filtros:</strong>
+        <select id="time-range">
+            <option value="1">Última 1 hora</option>
+            <option value="6">Últimas 6 horas</option>
+            <option value="24" selected>Últimas 24 horas</option>
+            <option value="168">Última semana</option>
+        </select>
+        <select id="severity-filter">
+            <option value="all" selected>Todas as severidades</option>
+            <option value="critical">Apenas Crítico</option>
+            <option value="high">Alto ou superior</option>
+            <option value="medium">Médio ou superior</option>
+        </select>
+        <button class="refresh-btn nav-btn" onclick="refreshAll()">Aplicar Filtros</button>
+    </div>
+
+    <!-- Alertas -->
+    <div id="security-alerts"></div>
+
+    <div class="dashboard-grid">
+        <!-- Resumo de Ataques -->
+        <div class="card">
+            <h2>📊 Resumo de Ataques</h2>
+            <div id="attack-summary">
+                <div class="metric">
+                    <span class="metric-label">Total de Ataques Detectados</span>
+                    <span class="metric-value" id="total-attacks">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Ataques Críticos</span>
+                    <span class="metric-value" id="critical-attacks">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">IPs Atacantes Únicos</span>
+                    <span class="metric-value" id="unique-attackers">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Alvos Únicos</span>
+                    <span class="metric-value" id="unique-targets">-</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Distribuição por Tipo de Ataque -->
+        <div class="card">
+            <h2>🎯 Tipos de Ataques</h2>
+            <div class="chart-container">
+                <canvas id="attack-types-chart"></canvas>
+            </div>
+        </div>
+
+        <!-- Picos de Tráfego -->
+        <div class="card full-width">
+            <h2>📈 Picos de Tráfego Detectados</h2>
+            <table id="traffic-spikes-table">
+                <thead>
+                    <tr>
+                        <th>Horário</th>
+                        <th>IP Origem</th>
+                        <th>País</th>
+                        <th>Provedor</th>
+                        <th>Volume (Bytes)</th>
+                        <th>Flows</th>
+                        <th>Taxa de Variação</th>
+                        <th>Severidade</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="8" style="text-align: center;">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Ataques DDoS -->
+        <div class="card full-width">
+            <h2>💥 Ataques DDoS Detectados</h2>
+            <table id="ddos-table">
+                <thead>
+                    <tr>
+                        <th>IP Origem</th>
+                        <th>Alvo</th>
+                        <th>País</th>
+                        <th>Provedor</th>
+                        <th>Volume</th>
+                        <th>Flows</th>
+                        <th>Packets</th>
+                        <th>Severidade</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="8" style="text-align: center;">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Port Scanning -->
+        <div class="card full-width">
+            <h2>🔍 Port Scanning Detectado</h2>
+            <table id="port-scan-table">
+                <thead>
+                    <tr>
+                        <th>IP Origem</th>
+                        <th>País</th>
+                        <th>Provedor</th>
+                        <th>Alvos Únicos</th>
+                        <th>Portas Escaneadas</th>
+                        <th>Tentativas</th>
+                        <th>Severidade</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="7" style="text-align: center;">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Brute Force Attacks -->
+        <div class="card full-width">
+            <h2>🔓 Ataques de Brute Force</h2>
+            <table id="bruteforce-table">
+                <thead>
+                    <tr>
+                        <th>IP Origem</th>
+                        <th>Alvo</th>
+                        <th>Porta</th>
+                        <th>Serviço</th>
+                        <th>Tentativas</th>
+                        <th>Duração</th>
+                        <th>Severidade</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="7" style="text-align: center;">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Ataques de Rede (Flood) -->
+        <div class="card full-width">
+            <h2>🌊 Ataques de Flood (SYN/UDP)</h2>
+            <table id="flood-table">
+                <thead>
+                    <tr>
+                        <th>Tipo</th>
+                        <th>IP Origem</th>
+                        <th>Alvo</th>
+                        <th>Protocolo</th>
+                        <th>Packets/s</th>
+                        <th>Volume</th>
+                        <th>Severidade</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="7" style="text-align: center;">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Análise Gwtelecom (ASN 263263) -->
+        <div class="card full-width">
+            <h2>🏢 IPs da Gwtelecom (AS263263) Gerando Ataques</h2>
+            <table id="gwtelecom-attacks-table">
+                <thead>
+                    <tr>
+                        <th>IP Interno</th>
+                        <th>Alvo</th>
+                        <th>País Alvo</th>
+                        <th>Tipo de Ataque</th>
+                        <th>Tentativas</th>
+                        <th>Volume</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="7" style="text-align: center;">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Timeline de Ataques -->
+        <div class="card full-width">
+            <h2>⏱️ Timeline de Ataques - Últimas 24h</h2>
+            <div class="chart-container" style="height: 400px;">
+                <canvas id="attacks-timeline-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script src="attack-analysis.js"></script>
+</body>
+</html>
