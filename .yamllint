@@ -1,0 +1,14 @@
+extends: default
+
+rules:
+  # "---" no início do arquivo não traz benefício real em compose/config
+  # de arquivo único; a maioria dos YAMLs deste projeto nunca usou.
+  document-start: disable
+  # O default (80) é curto demais para linhas comuns de docker-compose
+  # (healthcheck, volumes). 120 ainda pega linhas realmente ilegíveis.
+  line-length:
+    max: 120
+  # Comentários de exemplo (blocos inteiros comentados, como o de
+  # "resolutions" em akvorado-orchestrator.yaml.example) nem sempre se
+  # alinham de forma limpa com a regra padrão — não vale a pena forçar.
+  comments-indentation: disable

@@ -1,0 +1,18 @@
+# Força LF em todo arquivo de texto, independente da plataforma onde for
+# clonado/commitado. Scripts bash com CRLF falham (ou se comportam de forma
+# imprevisível) ao rodar num servidor Linux, que é o alvo deste projeto.
+* text=auto eol=lf
+
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.js text eol=lf
+*.html text eol=lf
+*.sql text eol=lf
+*.xml text eol=lf
+
+# Binários não devem ser tocados
+*.mmdb binary
+*.png binary
+*.svg binary

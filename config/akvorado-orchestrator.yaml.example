@@ -1,0 +1,59 @@
+# Configuração para Akvorado Orchestrator
+# O orchestrator gerencia schema e integração com ClickHouse/Kafka
+
+http:
+  listen: 0.0.0.0:8080
+
+clickhouse:
+  servers:
+    - clickhouse:9000
+  database: akvorado
+  username: __AKVORADO_DB_USER__
+  password: __AKVORADO_DB_PASSWORD__
+  kafka:
+    brokers:
+      - kafka:9092
+  # Retenção de dados. Descomente e ajuste para mudar o default oficial do
+  # Akvorado (ver console/data/docs/02-configuration.md no repo upstream).
+  # interval: 0 é a tabela de dados brutos; ttl: 0 mantém para sempre.
+  # resolutions:
+  #   - interval: 0
+  #     ttl: 360h   # dados brutos (15 dias)
+  #   - interval: 1m
+  #     ttl: 168h   # agregado de 1 minuto (1 semana)
+  #   - interval: 5m
+  #     ttl: 2160h  # agregado de 5 minutos (3 meses)
+  #   - interval: 1h
+  #     ttl: 8760h  # agregado de 1 hora (1 ano)
+
+kafka:
+  brokers:
+    - kafka:9092
+  topic: flows
+
+# Bancos GeoIP2/GeoLite2 (extraídos automaticamente de geoip/*.tar.gz
+# pelo scripts/install.sh para data/geoip/, montado em /var/lib/geoip)
+# optional: true evita que o orchestrator falhe ao subir se os bancos
+# ainda não tiverem sido extraídos.
+geoip:
+  asn-database:
+    - /var/lib/geoip/GeoLite2-ASN.mmdb
+  geo-database:
+    - /var/lib/geoip/GeoLite2-Country.mmdb
+    - /var/lib/geoip/GeoLite2-City.mmdb
+  optional: true
+
+# Configuração padrão para outlets (lista)
+outlet:
+  - metadata:
+      workers: 10
+      cache-persist-file: /run/akvorado/metadata.cache
+      query-timeout: 5s
+      providers:
+        - type: snmp
+          credentials:
+            ::/0:
+              communities:
+                - public
+          poller-retries: 3
+          poller-timeout: 5s
