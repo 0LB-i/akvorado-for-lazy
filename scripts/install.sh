@@ -116,7 +116,7 @@ setup_environment() {
 
     # Criar diretórios necessários
     log_info "Criando diretórios..."
-    mkdir -p data/{clickhouse,redis,kafka,zookeeper,geoip}
+    mkdir -p data/{clickhouse,redis,kafka,zookeeper,geoip,console}
     mkdir -p logs
     mkdir -p config
 
@@ -150,9 +150,14 @@ setup_environment() {
     chmod -R 755 data
     chmod -R 755 logs
 
-    # Kafka precisa de permissões específicas (uid:gid 1000:1000)
+    # Kafka e o Console rodam como uid:gid 1000:1000 dentro do container
+    # (usuário não-root "akvorado" definido no Dockerfile), então precisam
+    # ser donos dos diretórios de dados no host para poder escrever neles.
     log_info "Configurando permissões do Kafka..."
     chown -R 1000:1000 data/kafka 2>/dev/null || log_warn "Não foi possível ajustar permissões do Kafka (pode precisar de root)"
+
+    log_info "Configurando permissões do Console..."
+    chown -R 1000:1000 data/console 2>/dev/null || log_warn "Não foi possível ajustar permissões do Console (pode precisar de root)"
 }
 
 # Detectar suporte a AVX2 da CPU e fixar a versão do ClickHouse

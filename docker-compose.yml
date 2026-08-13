@@ -201,6 +201,9 @@ services:
           database: "akvorado"
           username: "${CLICKHOUSE_USER:-akvorado}"
           password: "${CLICKHOUSE_PASSWORD:-akvorado123}"
+        database:
+          driver: sqlite
+          dsn: /var/lib/akvorado-console/console.sqlite
         EOF
         exec /usr/local/bin/akvorado console /tmp/config.yaml
     depends_on:
@@ -209,6 +212,7 @@ services:
       - "${CONSOLE_HTTP_PORT:-8000}:8000"
     volumes:
       - ./logs:/var/log/akvorado
+      - ./data/console:/var/lib/akvorado-console
     networks:
       - akvorado-network
     healthcheck:

@@ -248,7 +248,8 @@ akvorado-for-lazy/
 │   ├── redis/               # Dados do Redis
 │   ├── kafka/               # Dados do Kafka
 │   ├── zookeeper/           # Dados do Zookeeper
-│   └── geoip/               # Bancos GeoIP
+│   ├── geoip/               # Bancos GeoIP
+│   └── console/             # SQLite com filtros salvos na UI do Console
 ├── logs/                    # Logs da aplicação (não versionado)
 ├── scripts/                 # Scripts de automação
 │   ├── install.sh          # Script de instalação (roda na VM já clonada)
