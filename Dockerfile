@@ -2,7 +2,14 @@
 # Build multi-stage para otimizar tamanho da imagem
 
 # Stage 1: Builder
-FROM golang:alpine AS builder
+# ATENCAO: a versao do Go fica fixada de proposito. O akvorado v2.0.4 declara
+# `go 1.25` e depende de golang.org/x/tools v0.38.0, que so entende o formato
+# de export data ate o Go 1.25. Usar a tag flutuante `golang:alpine` (hoje Go
+# 1.27) quebra o `go tool enumer` no meio do `make` com:
+#   enumer: internal error: package "fmt" without types was imported from
+#   "command-line-arguments"
+# So suba esta versao junto com um upgrade do akvorado que tambem suba o x/tools.
+FROM golang:1.25-alpine AS builder
 
 # Instalar dependências de build
 RUN apk add --no-cache git make gcc musl-dev nodejs npm curl zip
