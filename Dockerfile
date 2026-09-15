@@ -24,6 +24,12 @@ RUN git clone --branch v2.0.4 --depth 1 https://github.com/akvorado/akvorado.git
 RUN PNPM_VERSION=$(node -p "require('./console/frontend/package.json').packageManager.split('@')[1]") \
     && npm install -g pnpm@${PNPM_VERSION}
 
+# Corrige a regressão do upstream que faz o orchestrator devolver HTTP 500
+# "seeker can't seek" ao servir os CSVs dos dicionários do ClickHouse
+# (asns.csv, protocols.csv, tcp.csv, udp.csv, icmp.csv). Ver o cabeçalho de
+# patches/embed-seekable-fs.go para o diagnóstico completo.
+COPY patches/embed-seekable-fs.go /build/common/embed/fs.go
+
 # Build do binário
 RUN go mod download
 RUN make
