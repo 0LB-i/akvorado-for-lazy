@@ -60,9 +60,11 @@ RUN addgroup -g 1000 akvorado && \
 # Expor portas
 EXPOSE 8080 8081 8082 2055/udp 6343/udp 4739/udp
 
-# Healthcheck
+# Healthcheck padrão da imagem (o docker-compose.yml sobrescreve por serviço).
+# Não use `wget --spider`: ele faz HEAD, e as rotas do akvorado são registradas
+# apenas como GET no gin, então HEAD cai em 404 e o wget sai com código 8.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD wget --spider -q http://localhost:8080/health || exit 1
+    CMD wget -q -O /dev/null http://localhost:8080/api/v0/healthcheck || exit 1
 
 # Usuário
 USER akvorado

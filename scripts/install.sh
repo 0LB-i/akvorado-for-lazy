@@ -300,7 +300,7 @@ check_health() {
     log_info "Verificando Console (porta $console_port)..."
 
     while [ $attempt -lt $max_attempts ]; do
-        if curl -s "http://localhost:${console_port}/health" > /dev/null 2>&1; then
+        if curl -sf "http://localhost:${console_port}/api/v0/healthcheck" > /dev/null 2>&1; then
             log_info "✓ Console está saudável!"
             break
         fi
@@ -318,7 +318,7 @@ check_health() {
 
     # Verificar Orchestrator
     log_info "Verificando Orchestrator..."
-    if curl -s http://localhost:8080/health > /dev/null 2>&1; then
+    if curl -sf http://localhost:8080/api/v0/healthcheck > /dev/null 2>&1; then
         log_info "✓ Orchestrator está saudável!"
     else
         log_warn "✗ Orchestrator não está respondendo"
