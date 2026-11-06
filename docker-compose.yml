@@ -28,7 +28,21 @@ services:
     networks:
       - akvorado-network
     healthcheck:
-      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      # O healthcheck também garante que o banco "akvorado" existe.
+      # O orchestrator NÃO cria o banco (só tabelas/dicionários dentro dele) e
+      # a imagem do ClickHouse só cria o CLICKHOUSE_DB na primeira subida com
+      # data/clickhouse vazio. Se essa primeira subida falhar no meio (ex.:
+      # "Illegal instruction" em CPU sem AVX2 antes de fixar a versão), o
+      # banco nunca é criado e o Console devolve 500 em tudo. Como o
+      # orchestrator e o console esperam o ClickHouse ficar healthy, o banco
+      # sempre existe antes deles subirem. IF NOT EXISTS torna isso um no-op
+      # barato nas execuções seguintes. O nome "akvorado" é o mesmo fixado em
+      # config/akvorado-orchestrator.yaml e na config do console abaixo.
+      test:
+        - CMD-SHELL
+        - >-
+          clickhouse-client --user "$${CLICKHOUSE_USER}" --password "$${CLICKHOUSE_PASSWORD}"
+          --query 'CREATE DATABASE IF NOT EXISTS akvorado'
       interval: 30s
       timeout: 10s
       retries: 3
@@ -204,7 +218,9 @@ services:
         EOF
         exec /usr/local/bin/akvorado console /tmp/config.yaml
     depends_on:
-      - clickhouse
+      # service_healthy: o healthcheck do ClickHouse garante o banco "akvorado"
+      clickhouse:
+        condition: service_healthy
     # Interface web: aberta para a rede. Para expor só via proxy reverso local,
     # defina CONSOLE_BIND=127.0.0.1 no .env.
     ports:
