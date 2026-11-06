@@ -31,7 +31,7 @@ show_help() {
     echo "  restart         - Reinicia todos os serviços"
     echo "  status          - Mostra status dos containers"
     echo "  logs [serviço]  - Exibe logs (opcional: especificar serviço)"
-    echo "  update          - Atualiza imagens e reinicia"
+    echo "  update          - Atualiza imagens, reconstrói o Akvorado e reinicia"
     echo "  backup          - Faz backup dos dados"
     echo "  restore         - Restaura backup"
     echo "  clean           - Remove dados e recomeça"
@@ -87,9 +87,63 @@ show_logs() {
 
 update_services() {
     echo -e "${YELLOW}Atualizando serviços...${NC}"
-    $DC pull
-    $DC up -d
+    # A imagem akvorado-local:latest é construída localmente e não existe em
+    # nenhum registry: inlet/outlet/console a usam sem seção `build`, então um
+    # `pull` puro tenta baixá-la do Docker Hub e falha (abortando o script por
+    # causa do `set -e`). --ignore-pull-failures pula essas e atualiza só as
+    # imagens de terceiros (ClickHouse, Kafka).
+    echo "Baixando imagens de terceiros..."
+    $DC pull --ignore-pull-failures
+
+    # Reconstrói a imagem do Akvorado para aplicar mudanças no Dockerfile ou em
+    # patches/. --pull atualiza as imagens base (golang/alpine).
+    echo "Reconstruindo imagem do Akvorado..."
+    $DC build --pull
+
+    migrate_kafka_zookeeper_data
+
+    # --remove-orphans apaga containers de serviços que saíram do compose
+    # (Redis e Zookeeper, em instalações antigas).
+    $DC up -d --remove-orphans
     echo -e "${GREEN}Atualização concluída!${NC}"
+    echo "Acompanhe a subida com: ./scripts/manage.sh health"
+}
+
+# Instalações antigas rodavam o Kafka em modo Zookeeper (confluentinc/cp-kafka).
+# O Kafka atual roda em modo KRaft e não consegue abrir esse diretório de dados
+# (o meta.properties antigo não tem node.id). Os dados no Kafka são só um
+# buffer entre inlet e outlet, então basta mover para um backup e começar
+# vazio: só se perdem flows ainda não consumidos pelo outlet.
+# (Mesma lógica de scripts/install.sh.)
+migrate_kafka_zookeeper_data() {
+    local meta="data/kafka/meta.properties"
+    [ -f "$meta" ] || return 0
+
+    if [ ! -r "$meta" ]; then
+        echo -e "${YELLOW}⚠ Sem permissão para ler $meta; não foi possível verificar se é do Kafka antigo (Zookeeper).${NC}"
+        echo -e "${YELLOW}  Se o Kafka não subir, rode novamente com sudo.${NC}"
+        return 0
+    fi
+    grep -q '^node\.id=' "$meta" && return 0
+
+    local backup
+    backup="data/kafka.zookeeper-backup-$(date +%Y%m%d_%H%M%S)"
+    echo -e "${YELLOW}data/kafka contém dados do Kafka antigo (modo Zookeeper), incompatíveis com o modo KRaft.${NC}"
+    echo -e "${YELLOW}Movendo para $backup (pode apagar depois que a stack estiver ok).${NC}"
+
+    # Garante que o container antigo não está usando o diretório
+    $DC stop kafka > /dev/null 2>&1 || true
+
+    if ! mv data/kafka "$backup"; then
+        echo -e "${RED}Não foi possível mover data/kafka. Execute novamente com sudo.${NC}"
+        exit 1
+    fi
+    mkdir -p data/kafka
+    # A imagem apache/kafka roda como uid 1000 (appuser)
+    if ! chown 1000:1000 data/kafka 2>/dev/null; then
+        echo -e "${RED}Não foi possível ajustar o dono de data/kafka para 1000:1000. Execute novamente com sudo.${NC}"
+        exit 1
+    fi
 }
 
 backup_data() {
@@ -147,8 +201,11 @@ restore_backup() {
     echo "Descompactando dados..."
     tar -xzf "$backup_dir/$backup_file"
 
+    # Backups antigos podem trazer data/kafka do modo Zookeeper
+    migrate_kafka_zookeeper_data
+
     # Inicia serviços
-    $DC up -d
+    $DC up -d --remove-orphans
 
     echo -e "${GREEN}Backup restaurado com sucesso!${NC}"
 }
@@ -205,24 +262,41 @@ check_health() {
     echo -e "${BLUE}Verificando saúde dos serviços:${NC}"
     echo ""
 
-    # Array de serviços e suas portas de health
-    declare -A services=(
-        ["Console"]="8000"
-        ["Orchestrator"]="8080"
-        ["Inlet"]="8082"
-        ["ClickHouse"]="8123"
-        ["Redis"]="6379"
-    )
-
-    for service in "${!services[@]}"; do
-        port="${services[$service]}"
-
-        if nc -z localhost "$port" 2>/dev/null || timeout 1 bash -c "cat < /dev/null > /dev/tcp/localhost/$port" 2>/dev/null; then
-            echo -e "  ${GREEN}✓${NC} $service (porta $port)"
+    # Usa o estado do healthcheck do Docker de cada serviço do compose, em vez
+    # de só testar se a porta abre: os healthchecks do docker-compose.yml
+    # chamam /api/v0/healthcheck do akvorado, que retorna 503 quando algum
+    # componente interno falha (porta aberta não significa serviço saudável).
+    # Cobre todos os serviços, inclusive o outlet, que não publica porta.
+    local svc cid state failed=0
+    while read -r svc; do
+        cid=$($DC ps -q "$svc" 2>/dev/null)
+        if [ -z "$cid" ]; then
+            state="não está rodando"
         else
-            echo -e "  ${RED}✗${NC} $service (porta $port)"
+            state=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$cid" 2>/dev/null || echo "desconhecido")
         fi
-    done
+
+        case "$state" in
+            healthy)
+                echo -e "  ${GREEN}✓${NC} $svc"
+                ;;
+            starting)
+                echo -e "  ${YELLOW}…${NC} $svc (inicializando)"
+                ;;
+            *)
+                echo -e "  ${RED}✗${NC} $svc ($state)"
+                failed=1
+                ;;
+        esac
+    done < <($DC config --services)
+
+    echo ""
+    if [ "$failed" -eq 1 ]; then
+        echo -e "${RED}Há serviços com problema.${NC} Veja: ./scripts/manage.sh logs <serviço>"
+        echo "Diagnóstico detalhado: ./scripts/check-health.sh"
+        return 1
+    fi
+    echo -e "${GREEN}Todos os serviços estão saudáveis ou inicializando.${NC}"
 }
 
 update_geoip() {

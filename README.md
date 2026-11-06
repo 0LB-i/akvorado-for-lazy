@@ -58,8 +58,7 @@ Este projeto implementa a stack completa do Akvorado:
 - **Akvorado Orchestrator**: Orquestrador e gerenciador
 - **Akvorado Console**: Interface web
 - **ClickHouse**: Banco de dados para armazenamento de flows
-- **Redis**: Cache e armazenamento temporário
-- **Kafka + Zookeeper**: Message broker para exportação
+- **Kafka** (modo KRaft, sem Zookeeper): Message broker entre inlet e outlet
 
 ## Requisitos
 
@@ -82,8 +81,7 @@ Este projeto implementa a stack completa do Akvorado:
 
 Para uma VM Rocky Linux 9 zerada, use o script `bootstrap.sh`: ele instala o
 Docker, clona este repositório em `/opt/akvorado`, pergunta o usuário/senha
-do banco de dados (usado em todos os serviços que exigem autenticação:
-ClickHouse e Redis) e sobe a stack completa.
+do banco de dados (ClickHouse) e sobe a stack completa.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/0LB-i/akvorado-for-lazy/main/bootstrap.sh -o bootstrap.sh
@@ -109,9 +107,8 @@ cp .env.example .env
 nano .env
 ```
 
-Defina `CLICKHOUSE_USER`, `CLICKHOUSE_PASSWORD` e `REDIS_PASSWORD` (use a
-mesma senha nas duas, é o mesmo usuário/senha único usado em todos os
-serviços que pedem autenticação).
+Defina `CLICKHOUSE_USER` e `CLICKHOUSE_PASSWORD` (o ClickHouse é o único
+serviço da stack que pede autenticação).
 
 **IMPORTANTE**: Mude as senhas padrão antes de usar em produção!
 
@@ -157,7 +154,8 @@ Se preferir instalar manualmente:
 
 ```bash
 # 1. Criar diretórios
-mkdir -p data/{clickhouse,redis,kafka,zookeeper,geoip}
+mkdir -p data/{clickhouse,kafka,geoip,console}
+sudo chown -R 1000:1000 data/kafka data/console
 mkdir -p logs
 mkdir -p config
 
@@ -215,25 +213,34 @@ chmod +x scripts/manage.sh
 ./scripts/manage.sh health          # Verificar saúde
 ./scripts/manage.sh restart         # Reiniciar serviços
 ./scripts/manage.sh backup          # Backup dos dados
-./scripts/manage.sh update          # Atualizar imagens
+./scripts/manage.sh update          # Atualizar imagens e reconstruir o Akvorado
 ```
 
 ## Portas Utilizadas
 
-| Serviço | Porta | Protocolo | Descrição |
-|---------|-------|-----------|-----------|
-| Console Web | 8000 | TCP | Interface web |
-| Orchestrator HTTP | 8080 | TCP | API HTTP |
-| Orchestrator gRPC | 8081 | TCP | API gRPC |
-| Inlet HTTP | 8082 | TCP | API do coletor |
-| ClickHouse HTTP | 8123 | TCP | API ClickHouse |
-| ClickHouse Native | 9000 | TCP | Cliente ClickHouse |
-| Redis | 6379 | TCP | Cache |
-| Kafka | 9092 | TCP | Message broker |
-| Zookeeper | 2181 | TCP | Coordenação Kafka |
-| NetFlow | 2055 | UDP | Recepção NetFlow |
-| sFlow | 6343 | UDP | Recepção sFlow |
-| IPFIX | 4739 | UDP | Recepção IPFIX |
+| Serviço | Porta | Protocolo | Acesso | Descrição |
+|---------|-------|-----------|--------|-----------|
+| Console Web | 8000 | TCP | Rede (`CONSOLE_BIND`) | Interface web |
+| ClickHouse HTTP | 8123 | TCP | Rede (`CLICKHOUSE_BIND`) | API ClickHouse (Grafana, dashboard) |
+| ClickHouse Native | 9000 | TCP | Rede (`CLICKHOUSE_BIND`) | Cliente ClickHouse (Grafana, SQL) |
+| NetFlow | 2055 | UDP | Rede | Recepção NetFlow |
+| sFlow | 6343 | UDP | Rede | Recepção sFlow |
+| IPFIX | 4739 | UDP | Rede | Recepção IPFIX |
+| Orchestrator HTTP | 8080 | TCP | Só localhost | API HTTP |
+| Orchestrator gRPC | 8081 | TCP | Só localhost | API gRPC |
+| Inlet HTTP | 8082 | TCP | Só localhost | API do coletor |
+| Kafka | 9092 | TCP | Só localhost | Message broker |
+| Kafka (host) | 9093 | TCP | Só localhost | Message broker (usado pelo inlet) |
+
+Kafka, Orchestrator e a API do inlet não têm autenticação, então só escutam
+em `127.0.0.1`. Para consultá-los de outra máquina, use um túnel SSH, ex.:
+`ssh -L 8080:127.0.0.1:8080 usuario@servidor`.
+
+ClickHouse e Console ficam abertos para a rede por padrão. Para fechá-los,
+defina `CLICKHOUSE_BIND=127.0.0.1` e/ou `CONSOLE_BIND=127.0.0.1` no `.env`
+e rode `docker compose up -d`. **O Docker ignora o firewalld/UFW para portas
+publicadas**; para limitar por IP, use a chain `DOCKER-USER` (exemplo no
+[PRODUCTION_CHECKLIST.md](PRODUCTION_CHECKLIST.md#firewall)).
 
 ## Estrutura de Diretórios
 
@@ -245,9 +252,7 @@ akvorado-for-lazy/
 │   └── clickhouse/                      # Configs customizadas ClickHouse
 ├── data/                     # Dados persistentes (não versionado)
 │   ├── clickhouse/          # Dados do ClickHouse
-│   ├── redis/               # Dados do Redis
 │   ├── kafka/               # Dados do Kafka
-│   ├── zookeeper/           # Dados do Zookeeper
 │   ├── geoip/               # Bancos GeoIP
 │   └── console/             # SQLite com filtros salvos na UI do Console
 ├── logs/                    # Logs da aplicação (não versionado)
@@ -313,8 +318,11 @@ Edite o arquivo `.env`:
 
 ```bash
 CLICKHOUSE_PASSWORD=SuaSenhaSuperSegura123
-REDIS_PASSWORD=OutraSenhaSegura456
 ```
+
+O `config/akvorado-orchestrator.yaml` guarda uma cópia da senha e só é gerado
+quando não existe. A forma mais simples de trocar a senha é rodar de novo
+`sudo bash bootstrap.sh`, que atualiza o `.env` e regenera esse arquivo.
 
 #### Habilitar Autenticação
 
@@ -402,8 +410,8 @@ scrape_configs:
 ./scripts/manage.sh health
 
 # Manual
-curl http://localhost:8000/health
-curl http://localhost:8080/health
+curl http://localhost:8000/api/v0/healthcheck
+curl http://localhost:8080/api/v0/healthcheck
 ```
 
 ## Troubleshooting
@@ -456,7 +464,7 @@ docker-compose restart clickhouse
 
 O `akvorado-inlet` roda em `network_mode: host` (precisa receber pacotes
 NetFlow/sFlow/IPFIX direto na interface do servidor), então ele enxerga o
-Kafka como `localhost:9093` (listener `PLAINTEXT_HOST`), não como
+Kafka como `127.0.0.1:9093` (listener `PLAINTEXT_HOST`), não como
 `kafka:9092` (o nome usado pelos outros serviços dentro da rede Docker). Se
 o inlet ficar preso tentando `kafka:9092` — geralmente depois de mudar
 `KAFKA_ADVERTISED_LISTENERS` ou trocar a config do inlet — force a
@@ -467,7 +475,7 @@ docker compose up -d --force-recreate akvorado-inlet
 docker compose logs -f akvorado-inlet
 ```
 
-Confirme nos logs que a conexão está usando `localhost:9093`, não
+Confirme nos logs que a conexão está usando `127.0.0.1:9093`, não
 `kafka:9092`.
 
 ### Comparar com a config oficial do Akvorado
@@ -492,13 +500,34 @@ diretório temporário, para comparação manual:
 ## Atualização
 
 ```bash
-# Via script
+# Via script (baixa imagens novas, reconstrói o Akvorado e reinicia)
+git pull
 ./scripts/manage.sh update
 
 # Manual
-docker-compose pull
-docker-compose up -d
+docker compose pull --ignore-pull-failures
+docker compose build --pull
+docker compose up -d --remove-orphans
 ```
+
+### Atualizando instalações antigas (Redis/Zookeeper)
+
+Versões anteriores deste projeto rodavam Redis (que o Akvorado não usava) e
+Kafka em modo Zookeeper. Hoje o Kafka roda em modo KRaft (`apache/kafka`,
+mesma imagem do compose oficial do Akvorado) e esses dois serviços saíram.
+
+O `./scripts/manage.sh update` (ou o `install.sh`) faz a migração sozinho:
+
+- move o `data/kafka` antigo, incompatível com o KRaft, para
+  `data/kafka.zookeeper-backup-<data>` (só se perdem flows que ainda não
+  tinham sido consumidos pelo outlet);
+- remove os containers `akvorado-redis` e `akvorado-zookeeper`
+  (`--remove-orphans`).
+
+Rode com `sudo`, porque os diretórios em `data/` pertencem a root/uid 1000.
+Depois que tudo estiver saudável, dá para apagar `data/redis`,
+`data/zookeeper` e `data/kafka.zookeeper-backup-*`. As variáveis
+`REDIS_*` e `ZOOKEEPER_PORT` que sobrarem no `.env` são ignoradas.
 
 ## Desinstalação
 
@@ -523,7 +552,7 @@ Para consumir os dados:
 
 ```bash
 # Via kafka-console-consumer
-docker exec -it akvorado-kafka kafka-console-consumer \
+docker exec -it akvorado-kafka /opt/kafka/bin/kafka-console-consumer.sh \
   --bootstrap-server localhost:9092 \
   --topic akvorado-flows \
   --from-beginning

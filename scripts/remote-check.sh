@@ -16,6 +16,15 @@ NC='\033[0m' # No Color
 # Autenticação é via chave SSH (configure sua chave pública no servidor antes de usar).
 REMOTE_HOST="${REMOTE_HOST:?Defina a variável de ambiente REMOTE_HOST}"
 REMOTE_USER="${REMOTE_USER:?Defina a variável de ambiente REMOTE_USER}"
+# Diretório da instalação no servidor (default = onde o bootstrap.sh instala)
+REMOTE_DIR="${REMOTE_DIR:-/opt/akvorado}"
+# Portas HTTP (ajuste se mudou ORCHESTRATOR_HTTP_PORT/CONSOLE_HTTP_PORT no .env)
+ORCHESTRATOR_PORT="${ORCHESTRATOR_PORT:-8080}"
+INLET_PORT="${INLET_PORT:-8082}"
+CONSOLE_PORT="${CONSOLE_PORT:-8000}"
+
+# Versão do diretório escapada para uso seguro no comando remoto
+REMOTE_DIR_Q=$(printf '%q' "$REMOTE_DIR")
 
 echo "=========================================="
 echo "  Akvorado - Verificação Remota"
@@ -30,7 +39,7 @@ remote_exec() {
 # Verificar status dos containers
 check_containers() {
     echo -e "${YELLOW}[1/6] Verificando containers...${NC}"
-    remote_exec "cd /root/akvorado && docker compose ps"
+    remote_exec "cd $REMOTE_DIR_Q && docker compose ps"
     echo ""
 }
 
@@ -38,13 +47,23 @@ check_containers() {
 check_health() {
     echo -e "${YELLOW}[2/6] Verificando saúde dos serviços...${NC}"
 
-    echo "Orchestrator:"
-    remote_exec "curl -s http://localhost:8080/api/v0/orchestrator/healthcheck" || echo -e "${RED}FALHOU${NC}"
+    # /api/v0/healthcheck existe em todos os serviços do akvorado e retorna
+    # 503 quando algum componente interno falha; -f faz o curl sair com erro
+    # nesse caso (sem ele, um 503 contaria como sucesso).
+    local name port
+    for entry in "Orchestrator:$ORCHESTRATOR_PORT" "Inlet:$INLET_PORT" "Console:$CONSOLE_PORT"; do
+        name="${entry%%:*}"
+        port="${entry##*:}"
+        echo "$name (porta $port):"
+        if remote_exec "curl -sf http://localhost:${port}/api/v0/healthcheck"; then
+            echo -e "\n${GREEN}OK${NC}"
+        else
+            echo -e "${RED}FALHOU${NC}"
+        fi
+        echo ""
+    done
 
-    echo -e "\nConsole:"
-    remote_exec "curl -s http://localhost:8000/health" || echo -e "${RED}FALHOU${NC}"
-
-    echo -e "\nClickHouse:"
+    echo "ClickHouse:"
     remote_exec "docker exec akvorado-clickhouse clickhouse-client --query='SELECT 1'" || echo -e "${RED}FALHOU${NC}"
     echo ""
 }
@@ -54,13 +73,13 @@ check_logs() {
     echo -e "${YELLOW}[3/6] Verificando logs recentes (últimas 20 linhas)...${NC}"
 
     echo "=== Orchestrator ==="
-    remote_exec "cd /root/akvorado && docker compose logs --tail=20 akvorado-orchestrator"
+    remote_exec "cd $REMOTE_DIR_Q && docker compose logs --tail=20 akvorado-orchestrator"
 
     echo -e "\n=== Outlet ==="
-    remote_exec "cd /root/akvorado && docker compose logs --tail=20 akvorado-outlet"
+    remote_exec "cd $REMOTE_DIR_Q && docker compose logs --tail=20 akvorado-outlet"
 
     echo -e "\n=== Inlet ==="
-    remote_exec "cd /root/akvorado && docker compose logs --tail=20 akvorado-inlet"
+    remote_exec "cd $REMOTE_DIR_Q && docker compose logs --tail=20 akvorado-inlet"
     echo ""
 }
 
@@ -90,7 +109,7 @@ check_resources() {
 check_errors() {
     echo -e "${YELLOW}[6/6] Procurando por erros críticos...${NC}"
 
-    ERRORS=$(remote_exec "cd /root/akvorado && docker compose logs --tail=100 | grep -i 'error\|fatal\|panic' | tail -20")
+    ERRORS=$(remote_exec "cd $REMOTE_DIR_Q && docker compose logs --tail=100 | grep -i 'error\|fatal\|panic' | tail -20")
 
     if [ -z "$ERRORS" ]; then
         echo -e "${GREEN}Nenhum erro crítico encontrado nos últimos logs${NC}"

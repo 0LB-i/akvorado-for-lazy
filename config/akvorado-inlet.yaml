@@ -2,11 +2,14 @@
 # Recebe flows via NetFlow, sFlow e IPFIX
 
 http:
-  listen: 0.0.0.0:8082
+  # Só localhost: o inlet roda com network_mode: host, então 0.0.0.0 abriria
+  # a API (sem autenticação) para a rede. Só o healthcheck e os scripts locais
+  # usam essa porta. As portas UDP de flows abaixo continuam abertas.
+  listen: 127.0.0.1:8082
 
 kafka:
   brokers:
-    - localhost:9093
+    - 127.0.0.1:9093
   topic: flows
 
 # Configuração de entrada de flows (direto no nível raiz)

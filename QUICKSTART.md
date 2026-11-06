@@ -104,7 +104,7 @@ docker exec akvorado-clickhouse clickhouse-client --query="SELECT count() FROM a
 1. Mude as senhas no arquivo `.env`:
 ```bash
 nano .env
-# Altere: CLICKHOUSE_PASSWORD, REDIS_PASSWORD
+# Altere: CLICKHOUSE_PASSWORD
 ```
 
 2. O Console não tem login local — ele confia em headers HTTP de um proxy

@@ -124,7 +124,7 @@ Exemplo de saída:
 
 [1/6] Verificando containers...
 NAME                     STATUS    PORTS
-akvorado-orchestrator    running   0.0.0.0:8080->8080/tcp
+akvorado-orchestrator    running   127.0.0.1:8080->8080/tcp
 akvorado-inlet           running
 akvorado-outlet          running
 akvorado-console         running   0.0.0.0:8000->8000/tcp
@@ -302,7 +302,7 @@ akvorado/
 - **Dashboard**: http://SEU_IP/akvorado-dashboard/
 - **Console Akvorado**: http://SEU_IP:8000
 - **ClickHouse HTTP**: http://SEU_IP:8123
-- **Orchestrator API**: http://SEU_IP:8080
+- **Orchestrator API**: só localhost (`ssh -L 8080:127.0.0.1:8080 usuario@SEU_IP`)
 
 ### Portas dos Serviços
 
@@ -310,7 +310,7 @@ akvorado/
 |-------------------|-------|--------------------------------|
 | Dashboard Custom  | 80    | http://IP/akvorado-dashboard/  |
 | Console Akvorado  | 8000  | http://IP:8000                 |
-| Orchestrator      | 8080  | http://IP:8080                 |
+| Orchestrator      | 8080  | só localhost (túnel SSH)       |
 | ClickHouse HTTP   | 8123  | http://IP:8123                 |
 | ClickHouse Native | 9000  | clickhouse://IP:9000           |
 

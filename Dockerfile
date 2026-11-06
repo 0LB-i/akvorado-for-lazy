@@ -34,9 +34,6 @@ COPY patches/embed-seekable-fs.go /build/common/embed/fs.go
 RUN go mod download
 RUN make
 
-# Verificar onde o binário foi gerado
-RUN find /build -name "akvorado" -o -name "akvorado-*" | head -10
-
 # Stage 2: Runtime
 FROM alpine:latest
 
@@ -46,7 +43,7 @@ RUN apk add --no-cache ca-certificates tzdata wget
 # Criar diretórios
 RUN mkdir -p /etc/akvorado /var/lib/geoip /var/log/akvorado
 
-# Copiar binário do builder (pode estar em bin/ ou outro diretório)
+# Copiar binário do builder (o `make` do akvorado gera em bin/akvorado)
 COPY --from=builder /build/bin/akvorado /usr/local/bin/akvorado
 
 # Tornar executável

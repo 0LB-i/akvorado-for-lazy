@@ -7,7 +7,6 @@ Use este checklist antes de colocar o Akvorado em produção.
 ### Senhas e Credenciais
 
 - [ ] Alterar senha do ClickHouse no `.env` (CLICKHOUSE_PASSWORD)
-- [ ] Alterar senha do Redis no `.env` (REDIS_PASSWORD)
 - [ ] Gerar senhas fortes (mínimo 16 caracteres)
 - [ ] Armazenar credenciais em local seguro (vault/password manager)
 
@@ -25,22 +24,39 @@ Use este checklist antes de colocar o Akvorado em produção.
 
 ### Firewall
 
-- [ ] Configurar firewall do servidor
-- [ ] Permitir apenas IPs autorizados nas portas de gerenciamento (8000, 8080, 8123)
+Kafka (9092/9093), Orchestrator (8080/8081) e a API do inlet (8082) já
+escutam só em `127.0.0.1` — não precisam de regra de firewall. Ficam abertos
+para a rede apenas o Console (8000), o ClickHouse (8123/9000) e as portas UDP
+de flows.
+
+- [ ] Permitir apenas IPs autorizados no Console (8000) e no ClickHouse (8123, 9000)
+- [ ] Se ninguém de fora acessa o banco (Grafana etc.), usar `CLICKHOUSE_BIND=127.0.0.1` no `.env`
 - [ ] Permitir IPs dos dispositivos de rede nas portas de flow (2055, 6343, 4739)
-- [ ] Bloquear acesso direto ao Kafka/Zookeeper de fora
+- [ ] Usuário só-leitura no ClickHouse para Grafana/dashboard (não reutilizar o do orchestrator)
 - [ ] Considerar VPN para acesso administrativo
 
-Exemplo UFW:
-```bash
-# Gerenciamento (apenas IPs autorizados)
-ufw allow from 192.168.1.0/24 to any port 8000 proto tcp
-ufw allow from 192.168.1.0/24 to any port 8080 proto tcp
+**Atenção:** portas publicadas pelo Docker (Console e ClickHouse) **não passam
+pelas regras do firewalld/UFW** — o Docker insere as próprias regras de NAT
+antes delas. Para limitar por IP de origem, use a chain `DOCKER-USER`:
 
-# Flows (dispositivos de rede)
-ufw allow from 10.0.0.0/8 to any port 2055 proto udp
-ufw allow from 10.0.0.0/8 to any port 6343 proto udp
-ufw allow from 10.0.0.0/8 to any port 4739 proto udp
+```bash
+# Libera Console e ClickHouse só para a rede de gerência (ajuste a faixa)
+for port in 8000 8123 9000; do
+  iptables -I DOCKER-USER -p tcp -m conntrack --ctorigdstport "$port" --ctdir ORIGINAL ! -s 192.168.1.0/24 -j DROP
+done
+```
+
+(Para persistir após reboot, salve com `iptables-save` como em
+`scripts/setup-nat.sh`.)
+
+As portas UDP de flows são recebidas pelo inlet direto no host
+(`network_mode: host`), então essas sim respeitam o firewalld:
+
+```bash
+firewall-cmd --permanent --add-rich-rule='rule family=ipv4 source address=10.0.0.0/8 port port=2055 protocol=udp accept'
+firewall-cmd --permanent --add-rich-rule='rule family=ipv4 source address=10.0.0.0/8 port port=6343 protocol=udp accept'
+firewall-cmd --permanent --add-rich-rule='rule family=ipv4 source address=10.0.0.0/8 port port=4739 protocol=udp accept'
+firewall-cmd --reload
 ```
 
 ### SSL/TLS

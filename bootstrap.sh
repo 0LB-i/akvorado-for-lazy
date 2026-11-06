@@ -5,8 +5,7 @@
 # O que este script faz:
 #   1. Instala as dependências do sistema (Docker Engine + plugin compose, git)
 #   2. Clona (ou atualiza) o repositório em /opt/akvorado
-#   3. Pergunta um usuário e uma senha únicos, usados em todos os serviços
-#      que exigem autenticação (ClickHouse e Redis)
+#   3. Pergunta o usuário e a senha do banco de dados (ClickHouse)
 #   4. Builda as imagens e sobe a stack completa
 #
 # Uso recomendado (baixar e depois executar, para os prompts funcionarem
@@ -102,8 +101,8 @@ configure_credentials() {
     log_info "========================================"
     log_info "Credenciais do banco de dados"
     log_info "========================================"
-    log_info "Usuário e senha únicos, usados em todos os serviços que pedem"
-    log_info "autenticação (ClickHouse e Redis)."
+    log_info "Usuário e senha do ClickHouse (usados pelo orchestrator, pelo"
+    log_info "console e pelo dashboard)."
     echo ""
 
     read -r -p "Usuário do banco de dados [akvorado]: " DB_USER < /dev/tty
@@ -137,14 +136,15 @@ configure_credentials() {
         cp .env.example .env
     fi
 
-    # Reescreve só as 3 chaves de credencial, sem depender de sed (evita
-    # qualquer problema de escaping de caracteres especiais na senha)
+    # Reescreve só as chaves de credencial, sem depender de sed (evita
+    # qualquer problema de escaping de caracteres especiais na senha).
+    # REDIS_PASSWORD continua no filtro só para limpar .env de instalações
+    # antigas (o Redis foi removido da stack).
     grep -v -E '^(CLICKHOUSE_USER|CLICKHOUSE_PASSWORD|REDIS_PASSWORD)=' .env > .env.tmp || true
     {
         cat .env.tmp
         echo "CLICKHOUSE_USER=${DB_USER}"
         echo "CLICKHOUSE_PASSWORD=${DB_PASSWORD}"
-        echo "REDIS_PASSWORD=${DB_PASSWORD}"
     } > .env
     rm -f .env.tmp
 
